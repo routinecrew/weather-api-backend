@@ -1,0 +1,20 @@
+{
+  "overrides": [
+    {
+      "files": "*.ts",
+      "options": {
+        "arrowParens": "always",
+        "jsxSingleQuote": false,
+        "jsxBracketSameLine": false,
+        "singleQuote": true,
+        "semi": true,
+        "bracketSpacing": true,
+        "useTabs": false,
+        "tabWidth": 2,
+        "trailingComma": "all",
+        "printWidth": 120,
+        "endOfLine": "auto"
+      }
+    }
+  ]
+}

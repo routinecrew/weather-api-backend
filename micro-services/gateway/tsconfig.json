@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "composite": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./shared-types"
+    ]
+  },
+  "include": [
+    "./**/*",
+    "./shared-types/global.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"],
+}

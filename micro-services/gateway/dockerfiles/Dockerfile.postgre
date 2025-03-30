@@ -1,0 +1,11 @@
+FROM postgres:15.1-alpine
+
+LABEL version="1.0.0"
+LABEL maintainer="kang san"
+
+WORKDIR /.
+
+# 현재 프로젝트 구조에 맞게 초기화 SQL 스크립트 경로 수정
+ADD ./database/init.sql /docker-entrypoint-initdb.d/
+
+RUN chmod 755 /docker-entrypoint-initdb.d/init.sql
