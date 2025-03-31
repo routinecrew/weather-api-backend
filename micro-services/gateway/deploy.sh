@@ -17,9 +17,6 @@ POSTGRES_PORT=5432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres_password
 POSTGRES_DATABASE=weather_db
-REDIS_HOST=weather-redis
-REDIS_PORT=6379
-REDIS_PASSWORD=redis_password
 TZ=Asia/Seoul
 APP_NAME=weather-service
 EOF

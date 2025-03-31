@@ -24,18 +24,6 @@ services:
       - weather-network
     restart: unless-stopped
 
-  weather-redis:
-    image: redis:7.0
-    container_name: weather-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - weather_redis_data:/data
-    networks:
-      - weather-network
-    restart: unless-stopped
-
   weather-service:
     build:
       context: ./micro-services/gateway  # 컨텍스트 최적화
@@ -49,14 +37,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DATABASE: ${POSTGRES_DATABASE}
-      REDIS_HOST: weather-redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: ${TZ:-Asia/Seoul}
       APP_NAME: ${APP_NAME:-weather-service}
     depends_on:
       - weather-postgres
-      - weather-redis
     entrypoint: ["/bin/sh", "-c", "node dist/server.js"]
     ports:
       - "${PORT:-3000}:3000"
@@ -70,4 +54,3 @@ networks:
 
 volumes:
   postgres_data:
-  weather_redis_data:
