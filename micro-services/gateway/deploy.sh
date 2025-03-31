@@ -143,8 +143,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# pnpm 설치
-RUN npm install -g pnpm
+# bash 및 pnpm 설치
+RUN apk add --no-cache bash && npm install -g pnpm
 
 # 루트 파일 복사
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
