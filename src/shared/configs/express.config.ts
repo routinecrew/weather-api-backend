@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -18,7 +18,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'blob:', "'localhost:*'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'http://localhost:*', 'https://localhost:*'],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
         scriptSrc: ["'self'"],
@@ -30,16 +30,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestTracer.expressMiddleware());
 app.use(morganLogger);
-
 app.use(passport.initialize());
 
+// API 라우터 설정
 app.use('/', apiRouter);
+
+// 정적 파일 제공
 app.use('/resources', express.static(resourcePath));
-app.use((_req, res) => {
-  res.status(200).send('<h1>Express + Typescript Server</h1>');
+
+// 404 처리 (기본 응답 대체)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.status(404).json({
+    result: false,
+    message: `Route not found: ${req.method} ${req.path}`,
+  });
 });
 
 app.use(errorConverter);
 app.use(errorHandler);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 export default app;
