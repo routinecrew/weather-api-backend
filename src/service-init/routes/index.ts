@@ -11,14 +11,14 @@ const apikeyExcludedPaths = [
 
 const unless =
   (paths: { method: string; path: string }[], middleware: (req: Request, res: Response, next: NextFunction) => any) =>
-  (req: Request, res: Response, next: NextFunction) => {
+  (req: Request, _res: Response, next: NextFunction) => { // 'res'를 '_res'로 변경
     const fullPath = req.originalUrl.split('?')[0];
     for (const e of paths) {
       if (req.method.toUpperCase() === e.method && fullPath === e.path) {
         return next();
       }
     }
-    return middleware(req, res, next);
+    return middleware(req, _res, next);
   };
 
 // 디버깅 로그 추가
