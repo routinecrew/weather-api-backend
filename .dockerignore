@@ -1,16 +1,1 @@
-.vscode
-
-node_modules
-
-# docker volumes
-data
-
-# build
-build
-dist
-
-# log files
-logs
-
-# code coverage
-coverage
+data/
