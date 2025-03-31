@@ -9,8 +9,7 @@ LABEL maintainer="kang san"
 WORKDIR /docker-entrypoint-initdb.d/
 
 # 초기화 SQL 파일 복사
-# 주의: 이 경로는 docker-compose.yml의 context가 .. (micro-services/gateway/)로 설정된 경우 유효합니다
-COPY database/postgres.d/init.sql ./
+COPY postgres.d/init.sql ./
 
 # 실행 권한 부여
 RUN chmod 755 ./init.sql

@@ -4,13 +4,13 @@ set -e
 echo "🚀 서비스 배포를 시작합니다..."
 
 # 필요한 디렉토리 생성
-mkdir -p database/postgres.d
+mkdir -p postgres.d
 mkdir -p dockerfiles
 
 # init.sql 파일이 없으면 생성
-if [ ! -f database/postgres.d/init.sql ]; then
+if [ ! -f postgres.d/init.sql ]; then
   echo "init.sql 파일을 생성합니다..."
-  cat > database/postgres.d/init.sql << EOF
+  cat > postgres.d/init.sql << EOF
 SELECT 'CREATE DATABASE weather_db'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'weather_db')\gexec
 EOF
@@ -27,8 +27,7 @@ LABEL maintainer="kang san"
 
 WORKDIR /docker-entrypoint-initdb.d/
 
-# 컨텍스트가 상위 디렉토리로 설정되어 있으므로 경로 수정
-COPY database/postgres.d/init.sql ./
+COPY postgres.d/init.sql ./
 
 RUN chmod 755 ./init.sql
 EOF
@@ -61,7 +60,7 @@ version: '3.8'
 services:
   weather-postgres:
     build:
-      context: ..
+      context: .
       dockerfile: dockerfiles/Dockerfile.postgres
     container_name: weather-postgres
     environment:
@@ -84,8 +83,8 @@ services:
 
   weather-service:
     build:
-      context: ../../..
-      dockerfile: micro-services/gateway/dockerfiles/Dockerfile
+      context: .
+      dockerfile: dockerfiles/Dockerfile
     container_name: weather-service
     environment:
       NODE_ENV: \${NODE_ENV:-production}
@@ -125,43 +124,37 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # 루트 파일 복사
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml ./
 
-# gateway 서비스 관련 파일 복사
-COPY micro-services/gateway/ ./micro-services/gateway/
+# src 디렉토리 복사
+COPY src/ ./src/
 
 # 의존성 설치 및 빌드
 RUN pnpm install
-RUN cd micro-services/gateway && pnpm build
+RUN pnpm build
 
 # 프로덕션 단계
 FROM node:18-alpine
 
 WORKDIR /app
 
-# bash 및 pnpm 설치
+# bash 설치 및 pnpm 설치
 RUN apk add --no-cache bash && npm install -g pnpm
 
 # 루트 파일 복사
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-
-# gateway 서비스 패키지 파일 복사
-COPY micro-services/gateway/package.json ./micro-services/gateway/
+COPY package.json pnpm-lock.yaml ./
 
 # 프로덕션 의존성 설치
 RUN pnpm install --prod
 
 # 빌드된 파일 복사
-COPY --from=builder /app/micro-services/gateway/dist ./micro-services/gateway/dist
+COPY --from=builder /app/dist ./dist/
 # CSV 파일 복사
-COPY --from=builder /app/micro-services/gateway/src/IPB_250104_250305.csv ./micro-services/gateway/dist/
+COPY --from=builder /app/src/IPB_250104_250305.csv ./dist/
 
 # wait-for-it 스크립트 추가
 ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
 RUN chmod +x /wait-for-it.sh
-
-# 작업 디렉토리 설정
-WORKDIR /app/micro-services/gateway
 
 # 환경 변수 설정
 ENV NODE_ENV=production
