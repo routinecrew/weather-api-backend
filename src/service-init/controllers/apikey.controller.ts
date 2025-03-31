@@ -8,7 +8,15 @@ import { ApiKey } from '../models/main/apikey.model';
 
 const create = async (req: Request) => {
   const data = await apiKeyServices.create(req);
+  return <BasicResponse<ApiKey>>{
+    result: true,
+    message: getResponsePhrase(STATUS_CODES.CREATED),
+    data,
+  };
+};
 
+const init = async (req: Request) => {
+  const data = await apiKeyServices.init(req);
   return <BasicResponse<ApiKey>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.CREATED),
@@ -18,7 +26,6 @@ const create = async (req: Request) => {
 
 const getAll = async () => {
   const data = await apiKeyServices.getAll();
-
   return <ListResponse<ApiKey>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
@@ -29,7 +36,6 @@ const getAll = async () => {
 
 const getOne = async (req: Request) => {
   const data = await apiKeyServices.getOne(req);
-
   return <BasicResponse<ApiKey>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
@@ -39,7 +45,6 @@ const getOne = async (req: Request) => {
 
 const update = async (req: Request) => {
   const data = await apiKeyServices.update(req);
-
   return <BasicResponse<ApiKey>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
@@ -49,7 +54,6 @@ const update = async (req: Request) => {
 
 const remove = async (req: Request) => {
   const data = await apiKeyServices.remove(req);
-
   return <BasicResponse<number>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
@@ -59,7 +63,6 @@ const remove = async (req: Request) => {
 
 const regenerate = async (req: Request) => {
   const data = await apiKeyServices.regenerate(req);
-
   return <BasicResponse<{ id: number; key: string; name: string }>>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
@@ -69,6 +72,7 @@ const regenerate = async (req: Request) => {
 
 export default {
   create,
+  init, // 추가
   getAll,
   getOne,
   update,

@@ -10,6 +10,19 @@ const create = async (req: Request<unknown, unknown, ApiKeyCreationAttributes, u
   return ApiKey.createApiKey(body);
 };
 
+const init = async (req: Request<unknown, unknown, ApiKeyCreationAttributes, unknown>) => {
+  const { body } = req;
+  const { name } = body;
+
+  // 첫 키 생성 시 중복 체크 (선택 사항)
+  const existingKey = await ApiKey.findOne({ where: { name, isActive: true } });
+  if (existingKey) {
+    throw new HttpError(STATUS_CODES.CONFLICT, 'API key with this name already exists');
+  }
+
+  return ApiKey.createApiKey(body);
+};
+
 const getAll = async () => {
   return ApiKey.getAllApiKeys();
 };
@@ -19,7 +32,6 @@ const getOne = async (req: Request<ParamsDictionary, unknown, unknown, unknown>)
   const { id } = params;
 
   const apiKey = await ApiKey.findById(Number(id));
-
   if (!apiKey) {
     throw new HttpError(STATUS_CODES.NOT_FOUND, 'API key not found');
   }
@@ -31,9 +43,7 @@ const update = async (req: Request<ParamsDictionary, unknown, Partial<ApiKeyAttr
   const { params, body } = req;
   const { id } = params;
 
-  // 키 존재 여부 확인
   const apiKey = await ApiKey.findById(Number(id));
-
   if (!apiKey) {
     throw new HttpError(STATUS_CODES.NOT_FOUND, 'API key not found');
   }
@@ -45,9 +55,7 @@ const remove = async (req: Request<ParamsDictionary, unknown, unknown, unknown>)
   const { params } = req;
   const { id } = params;
 
-  // 키 존재 여부 확인
   const apiKey = await ApiKey.findById(Number(id));
-
   if (!apiKey) {
     throw new HttpError(STATUS_CODES.NOT_FOUND, 'API key not found');
   }
@@ -59,17 +67,12 @@ const regenerate = async (req: Request<ParamsDictionary, unknown, unknown, unkno
   const { params } = req;
   const { id } = params;
 
-  // 키 존재 여부 확인
   const apiKey = await ApiKey.findById(Number(id));
-
   if (!apiKey) {
     throw new HttpError(STATUS_CODES.NOT_FOUND, 'API key not found');
   }
 
-  // 새 키 생성
   const newKey = ApiKey.generateKey();
-
-  // 키 업데이트
   await ApiKey.updateApiKey(Number(id), {
     key: newKey,
     lastUsedAt: undefined,
@@ -84,6 +87,7 @@ const regenerate = async (req: Request<ParamsDictionary, unknown, unknown, unkno
 
 export default {
   create,
+  init, // 추가
   getAll,
   getOne,
   update,

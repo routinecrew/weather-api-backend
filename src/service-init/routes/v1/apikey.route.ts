@@ -7,6 +7,14 @@ import { validateApiKey } from '../../../shared/middlewares/apikey.middleware';
 
 export const apiKeyRouter = Router();
 
+// 초기 API 키 생성 엔드포인트 (API 키 검증 제외)
+apiKeyRouter
+  .route('/api/weather-service/apikeys/init')
+  .post(
+    MW.validateDto(apiKeyDto.create), // 동일한 DTO 재사용
+    MW.tryCatchAsync(apiKeyController.init), // init 컨트롤러 사용
+  );
+
 // API 키 관리 엔드포인트 - 관리자만 접근 가능
 apiKeyRouter
   .route('/api-keys')
