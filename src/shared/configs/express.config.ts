@@ -32,14 +32,10 @@ app.use(requestTracer.expressMiddleware());
 app.use(morganLogger);
 app.use(passport.initialize());
 
-// API 라우터 설정
 app.use('/', apiRouter);
-
-// 정적 파일 제공
 app.use('/resources', express.static(resourcePath));
 
-// 404 처리 (기본 응답 대체)
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, res: Response, _next: NextFunction) => { // 'next' → '_next'
   res.status(404).json({
     result: false,
     message: `Route not found: ${req.method} ${req.path}`,

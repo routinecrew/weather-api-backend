@@ -11,7 +11,7 @@ const apikeyExcludedPaths = [
 
 const unless =
   (paths: { method: string; path: string }[], middleware: (req: Request, res: Response, next: NextFunction) => any) =>
-  (req: Request, _res: Response, next: NextFunction) => { // 'res'를 '_res'로 변경
+  (req: Request, _res: Response, next: NextFunction) => { // 'res' → '_res'
     const fullPath = req.originalUrl.split('?')[0];
     for (const e of paths) {
       if (req.method.toUpperCase() === e.method && fullPath === e.path) {
@@ -20,12 +20,6 @@ const unless =
     }
     return middleware(req, _res, next);
   };
-
-// 디버깅 로그 추가
-router.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.originalUrl}`);
-  next();
-});
 
 router.use(`/api/${APP_NAME}/apikeys`, unless(apikeyExcludedPaths, validateApiKey), apiKeyRouter);
 router.use(`/api/${APP_NAME}/weather`, weatherRouter);
