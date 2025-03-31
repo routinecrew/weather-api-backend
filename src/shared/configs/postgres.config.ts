@@ -24,12 +24,15 @@ export const connectPostgres = async (): Promise<Sequelize> => {
       dialect: 'postgres',
       timezone: getEnvVariable(process.env, 'TZ', 'UTC'),
       logging: (msg) => mqlogger.debug(msg),
+      // 스키마 설정
+      schema: 'public',
       define: {
         charset: 'utf8mb4_unicode_ci',
         paranoid: true,
         timestamps: true,
         freezeTableName: true,
         underscored: true,
+        schema: 'public', // 스키마 명시적 지정
       },
       pool: {
         max: getEnvNumber(process.env, 'DB_POOL_MAX', 3),
@@ -56,6 +59,15 @@ export const connectPostgres = async (): Promise<Sequelize> => {
 
     // 모델 초기화
     await generateMainModels(seq);
+    
+    // 모델 동기화 전에 스키마 설정
+    try {
+      // PostgreSQL에서는 public 스키마가 기본적으로 존재하지만, 명시적으로 설정
+      await seq.query('CREATE SCHEMA IF NOT EXISTS public');
+      mqlogger.info('✓ Schema check completed');
+    } catch (schemaErr) {
+      mqlogger.warn('Schema setup warning (may already exist):', schemaErr);
+    }
     
     // 모델 동기화 (테이블 생성)
     mqlogger.info('🔄 Synchronizing models with database...');

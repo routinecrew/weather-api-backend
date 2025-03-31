@@ -4,7 +4,7 @@ import * as SQLZ from 'sequelize';
 import { STATUS_CODES } from '../../../shared/constants/http-status';
 import { ListQuery } from '../../../shared/dtos/common.dto';
 import { HttpError } from '../../../shared/errors';
-import { seqLogger } from '../../../shared/utils';
+import { seqLogger } from '../../../shared/utils/logger';
 
 export interface WeatherAttributes {
   id: number;
@@ -30,12 +30,19 @@ export interface WeatherAttributes {
 
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
 }
 
-export type WeatherOmitAttributes = 'id' | 'createdAt' | 'updatedAt';
+export type WeatherOmitAttributes = 'id' | 'createdAt' | 'updatedAt' | 'deletedAt';
 export type WeatherCreationAttributes = SQLZ.Optional<WeatherAttributes, WeatherOmitAttributes>;
 
-@SQLZ_TS.Table({ tableName: 'weather', modelName: 'Weather' })
+@SQLZ_TS.Table({ 
+  tableName: 'weather', 
+  modelName: 'Weather',
+  schema: 'public', // 명시적으로 스키마 설정
+  paranoid: true,  // soft delete 지원
+  underscored: true, // snake_case 필드명 사용
+})
 export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAttributes> {
   @SQLZ_TS.PrimaryKey
   @SQLZ_TS.AutoIncrement
@@ -109,6 +116,9 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
 
   @SQLZ_TS.UpdatedAt
   override readonly updatedAt!: Date;
+
+  @SQLZ_TS.DeletedAt
+  override readonly deletedAt?: Date;
 
   static async write(values: WeatherCreationAttributes, options?: SQLZ.CreateOptions<SQLZ.Attributes<Weather>>) {
     return this.create(values, {
