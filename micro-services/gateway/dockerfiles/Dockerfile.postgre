@@ -5,7 +5,7 @@ LABEL maintainer="kang san"
 
 WORKDIR /docker-entrypoint-initdb.d/
 
-# 컨텍스트(서비스 루트)를 기준으로 경로 지정
+# 컨텍스트가 gateway 디렉토리로 변경됨
 COPY database/postgres.d/init.sql ./
 
 RUN chmod 755 ./init.sql

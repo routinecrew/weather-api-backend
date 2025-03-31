@@ -9,22 +9,20 @@ RUN npm install -g pnpm
 # Alpine 이미지인 경우 bash 설치 추가
 RUN apk add --no-cache bash
 
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY micro-services/gateway/package.json ./micro-services/gateway/
+# Copy package files - 컨텍스트가 gateway 디렉토리로 변경됨
+COPY package.json pnpm-lock.yaml ./
+COPY tsconfig.json ./
 
 # Install dependencies
 RUN pnpm install
 
-# Copy tsconfig files
-COPY tsconfig.base.json ./
-COPY micro-services/gateway/tsconfig.json ./micro-services/gateway/
-
-# Copy source code for gateway service only
-COPY micro-services/gateway/ ./micro-services/gateway/
+# Copy source code - 컨텍스트가 gateway 디렉토리로 변경됨
+COPY src/ ./src/
+COPY service-init/ ./service-init/
+COPY shared/ ./shared/
 
 # Build application
-RUN pnpm --filter @micro-services/gateway build
+RUN pnpm build
 
 # 프로덕션 단계
 FROM node:18-alpine
@@ -35,14 +33,13 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copy package files for production
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY micro-services/gateway/package.json ./micro-services/gateway/
+COPY package.json pnpm-lock.yaml ./
 
 # Install production dependencies only
 RUN pnpm install --prod
 
 # Copy built files from builder stage
-COPY --from=builder /app/micro-services/gateway/dist ./micro-services/gateway/dist
+COPY --from=builder /app/dist ./dist
 
 # Set NODE_ENV to production
 ENV NODE_ENV=production
@@ -55,8 +52,5 @@ EXPOSE 3000
 ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
 RUN chmod +x /wait-for-it.sh
 
-# Set working directory to gateway service
-WORKDIR /app/micro-services/gateway
-
 # Start the application
-CMD ["/wait-for-it.sh", "weather-postgres:5432", "--", "node", "dist/server.js"]
+CMD ["/bin/sh", "-c", "node dist/server.js"]
