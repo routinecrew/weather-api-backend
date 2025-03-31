@@ -12,7 +12,18 @@ FROM node:18-alpine
 WORKDIR /app
 RUN apk add --no-cache bash && npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
-COPY .env /app/.env  
+
+# .env 파일 생성
+RUN echo "NODE_ENV=production\n\
+PORT=3000\n\
+POSTGRES_HOST=weather-postgres\n\
+POSTGRES_PORT=5432\n\
+POSTGRES_USER=postgres\n\
+POSTGRES_PASSWORD=postgres123\n\
+POSTGRES_DATABASE=weather_db\n\
+TZ=Asia/Seoul\n\
+APP_NAME=weather-service" > /app/.env
+
 RUN pnpm install --prod
 COPY --from=builder /app/dist ./dist/
 COPY src/IPB_250104_250305.csv ./dist/
