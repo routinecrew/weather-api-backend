@@ -40,6 +40,8 @@ COPY src/IPB_250104_250305.csv ./dist/
 ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
 RUN chmod +x /wait-for-it.sh
 
+RUN apk add --no-cache bash python3 make g++
+
 # 환경 변수 설정
 ENV NODE_ENV=production
 ENV PORT=3000
