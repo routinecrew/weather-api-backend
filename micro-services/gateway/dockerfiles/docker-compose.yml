@@ -26,8 +26,8 @@ services:
 
   weather-service:
     build:
-      context: ..
-      dockerfile: dockerfiles/Dockerfile
+      context: ../../
+    dockerfile: micro-services/gateway/dockerfiles/Dockerfile
     container_name: weather-service
     environment:
       NODE_ENV: ${NODE_ENV:-production}

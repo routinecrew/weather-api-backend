@@ -26,11 +26,14 @@ fi
 # 환경 변수 로드
 export $(grep -v '^#' .env | xargs)
 
-# 디렉토리 이동 없이 docker-compose 직접 실행
+# 모노레포 루트 디렉토리로 이동
+cd ../../
+
+# 컨테이너 중지 및 시작
 echo "🛑 Stopping existing containers..."
-docker-compose -f dockerfiles/docker-compose.yml down || true
+docker-compose -f micro-services/gateway/dockerfiles/docker-compose.yml down || true
 
 echo "🏗️ Building and starting containers..."
-docker-compose -f dockerfiles/docker-compose.yml up -d --build
+docker-compose -f micro-services/gateway/dockerfiles/docker-compose.yml up -d --build
 
 echo "✅ Gateway service deployment completed successfully!"
