@@ -19,8 +19,8 @@ export const connectPostgres = async (): Promise<Sequelize> => {
       host: getEnvVariable(process.env, 'POSTGRES_HOST', 'localhost'),
       port: getEnvNumber(process.env, 'POSTGRES_PORT', 5432),
       username: getEnvVariable(process.env, 'POSTGRES_USER', 'postgres'),
-      password: getEnvVariable(process.env, 'POSTGRES_PASSWORD', 'postgres123'), // 기본값 추가
-      database: getEnvVariable(process.env, 'POSTGRES_DATABASE', 'weather_db'), // 기본값 추가
+      password: getEnvVariable(process.env, 'POSTGRES_PASSWORD', 'postgres123'),
+      database: getEnvVariable(process.env, 'POSTGRES_DATABASE', 'weather_db'),
       dialect: 'postgres',
       timezone: getEnvVariable(process.env, 'TZ', 'UTC'),
       logging: (msg) => mqlogger.debug(msg),
@@ -54,7 +54,13 @@ export const connectPostgres = async (): Promise<Sequelize> => {
 
     mqlogger.info('🔌 After Authenticating ...');
 
+    // 모델 초기화
     await generateMainModels(seq);
+    
+    // 모델 동기화 (테이블 생성)
+    mqlogger.info('🔄 Synchronizing models with database...');
+    await seq.sync({ alter: true });
+    mqlogger.info('💡 Synced main models');
 
     mqlogger.info('✨ Connected to Postgres');
 
@@ -63,13 +69,22 @@ export const connectPostgres = async (): Promise<Sequelize> => {
     mqlogger.error('❌ PostgreSQL 연결 오류:');
     mqlogger.error(err);
     
-    // 10초 후 재시도 (선택 사항)
-    mqlogger.info('🔄 10초 후 다시 시도합니다...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
-    return connectPostgres(); // 재귀적으로 다시 시도
+    // 최대 재시도 횟수 관리를 위한 간단한 방법
+    const retryCount = Number(process.env.DB_RETRY_COUNT || '0');
     
-    // 또는 그냥 오류를 던지고 싶다면:
-    // throw err;
+    if (retryCount < 3) {
+      // 재시도 횟수 증가
+      process.env.DB_RETRY_COUNT = String(retryCount + 1);
+      
+      mqlogger.info(`🔄 ${10}초 후 다시 시도합니다... (${retryCount + 1}/3)`);
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      return connectPostgres(); // 재귀적으로 다시 시도
+    } else {
+      // 재시도 횟수 초과
+      mqlogger.error('❌ 최대 재시도 횟수를 초과했습니다. 데이터베이스 연결을 중단합니다.');
+      process.env.DB_RETRY_COUNT = '0'; // 재시도 카운터 초기화
+      throw err;
+    }
   }
 };
 
