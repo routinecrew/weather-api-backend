@@ -31,6 +31,12 @@ COPY postgres.d/init.sql ./
 RUN chmod 755 ./init.sql
 EOF
 
+# package.json 수정 - pg 패키지 추가
+echo "package.json에 pg 패키지를 추가합니다..."
+# 임시 파일에 jq를 사용하여 pg 패키지 추가
+cat package.json | sed 's/"dependencies": {/"dependencies": {\n    "pg": "^8.11.3",/g' > package.json.tmp
+mv package.json.tmp package.json
+
 # .env 파일 생성
 echo "📝 .env 파일을 생성합니다..."
 cat > .env << EOF
