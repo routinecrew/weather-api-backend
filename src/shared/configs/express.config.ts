@@ -45,7 +45,7 @@ app.use((req: Request, res: Response, _next: NextFunction) => { // 'next' → '_
 app.use(errorConverter);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 9090;
+const PORT = process.env.PORT || 9091;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
