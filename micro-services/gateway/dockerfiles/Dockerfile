@@ -3,56 +3,34 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
-
-# Alpine 이미지인 경우 bash 설치 추가
-RUN apk add --no-cache bash
-
-# 모노레포 루트 컨텍스트에 맞게 수정
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ../../
-COPY micro-services/gateway/package.json ./
-COPY tsconfig.base.json ../../
-COPY micro-services/gateway/tsconfig.json ./
-COPY . ./
-
 # 소스 코드 복사
-COPY micro-services/gateway/ ./micro-services/gateway/
+COPY . .
 
-# Build application
-RUN pnpm --filter @micro-services/gateway build
+# 의존성 설치
+RUN npm install
+
+# 애플리케이션 빌드
+RUN npm run build
 
 # 프로덕션 단계
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# package.json과 빌드된 파일 복사
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/IPB_250104_250305.csv ./dist/
 
-# 모노레포 루트 컨텍스트에 맞게 수정
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY micro-services/gateway/package.json ./micro-services/gateway/
+# 프로덕션 의존성만 설치
+RUN npm install --only=production
 
-# Install production dependencies only
-RUN pnpm install --prod
-
-# Copy built files from builder stage
-COPY --from=builder /app/micro-services/gateway/dist ./micro-services/gateway/dist
-
-# Set NODE_ENV to production
+# 환경 변수 설정
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Expose port
+# 포트 노출
 EXPOSE 3000
 
-# Add wait-for-it script
-ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
-RUN chmod +x /wait-for-it.sh
-
-# Set working directory to gateway service
-WORKDIR /app/micro-services/gateway
-
-# Start the application
-CMD ["/bin/sh", "-c", "node dist/server.js"]
+# 애플리케이션 시작
+CMD ["node", "dist/server.js"]

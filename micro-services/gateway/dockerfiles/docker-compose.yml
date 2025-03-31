@@ -4,7 +4,7 @@ services:
   weather-postgres:
     build:
       context: ..
-      dockerfile: dockerfiles/Dockerfile.postgres  # 수정된 경로
+      dockerfile: dockerfiles/Dockerfile.postgres
     container_name: weather-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -26,7 +26,7 @@ services:
 
   weather-service:
     build:
-      context: ./micro-services/gateway  # 컨텍스트 최적화
+      context: ..
       dockerfile: dockerfiles/Dockerfile
     container_name: weather-service
     environment:
@@ -41,7 +41,6 @@ services:
       APP_NAME: ${APP_NAME:-weather-service}
     depends_on:
       - weather-postgres
-    entrypoint: ["/bin/sh", "-c", "node dist/server.js"]
     ports:
       - "${PORT:-3000}:3000"
     networks:

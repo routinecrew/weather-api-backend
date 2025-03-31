@@ -18,10 +18,13 @@ POSTGRES_USER=weather_user
 POSTGRES_PASSWORD=secure_password_2025$ 
 POSTGRES_DATABASE=weather_db
 TZ=Asia/Seoul
-APP_NAME=weather-servic
+APP_NAME=weather-service
 EOF
   }
 fi
+
+# 환경 변수 로드
+export $(grep -v '^#' .env | xargs)
 
 # dockerfiles 디렉토리로 이동 (docker-compose.yml이 있는 위치)
 cd dockerfiles
