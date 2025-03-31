@@ -3,8 +3,8 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# 빌드 도구 설치
-RUN apk add --no-cache python3 make g++ 
+# 빌드 도구 설치 (더 포괄적인 도구 세트)
+RUN apk add --no-cache python3 make g++ gcc libc-dev linux-headers
 
 # pnpm 설치
 RUN npm install -g pnpm
@@ -22,8 +22,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# 빌드 도구 및 bash 설치
-RUN apk add --no-cache bash python3 make g++ && npm install -g pnpm
+# 빌드 도구 및 bash 설치 (더 포괄적인 도구 세트)
+RUN apk add --no-cache bash python3 make g++ gcc libc-dev linux-headers && npm install -g pnpm
 
 # 루트 파일 복사
 COPY package.json pnpm-lock.yaml ./
@@ -39,8 +39,6 @@ COPY src/IPB_250104_250305.csv ./dist/
 # wait-for-it 스크립트 추가
 ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
 RUN chmod +x /wait-for-it.sh
-
-RUN apk add --no-cache bash python3 make g++
 
 # 환경 변수 설정
 ENV NODE_ENV=production
