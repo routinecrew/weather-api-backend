@@ -35,6 +35,35 @@ function findCsvFile(filename: string): string {
 }
 
 /**
+ * 날짜 문자열을 파싱하는 강화된 함수
+ * 다양한 형식과 특수 공백 문자를 처리
+ */
+function parseDate(dateStr: string): Date | null {
+  // 특수 공백 문자를 포함한 모든 종류의 공백 제거 및 표준 공백으로 변환
+  const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+  
+  // 기본 Date 파싱 시도
+  const date = new Date(cleanDateStr);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  
+  // 사용자 정의 형식 시도 (예: YYYY-MM-DDㅤHH:MM:SS 형식)
+  const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
+  const match = regex.exec(dateStr);
+  if (match) {
+    const [, datePart, timePart] = match;
+    const formattedStr = `${datePart}T${timePart}`;
+    const parsedDate = new Date(formattedStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * CSV 파일에서 1번 센서 그룹 데이터를 읽어서 데이터베이스에 저장하는 스크립트
  */
 async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): Promise<void> {
@@ -54,6 +83,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     skipEmptyLines: true,
     dynamicTyping: true, // 자동으로 숫자 타입 변환
     transformHeader: (header: string) => header.trim(), // 헤더 공백 제거
+    // 큰 파일을 고려한 추가 옵션
+    delimiter: ",", // 명시적으로 구분자 지정
+    delimitersToGuess: [',', '\t', '|', ';'], // 다양한 구분자 추측
   });
 
   if (parseResult.errors && parseResult.errors.length > 0) {
@@ -82,11 +114,10 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     for (const row of batch) {
       try {
         const timeStr = row.time;
-        // CSV의 time 문자열이 유효한 날짜 형식인지 확인
-        const cleanTimeStr = timeStr.replace(/\s+/g, ' ').trim();
-        const timeDate = new Date(cleanTimeStr);
+        // 강화된 날짜 파싱 함수 사용
+        const timeDate = parseDate(timeStr);
         
-        if (isNaN(timeDate.getTime())) {
+        if (!timeDate) {
           logger.warn(`Invalid date format in row: ${JSON.stringify(row)}`);
           errorCount++;
           continue;
