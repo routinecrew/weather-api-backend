@@ -1,10 +1,4 @@
-<invoke name="artifacts">
-<parameter name="command">create</parameter>
-<parameter name="id">deploy-script-fix</parameter>
-<parameter name="type">application/vnd.ant.code</parameter>
-<parameter name="language">bash</parameter>
-<parameter name="title">수정된 deploy.sh 스크립트</parameter>
-<parameter name="content">#!/bin/bash
+#!/bin/bash
 set -e
 
 echo "🚀 서비스 배포를 시작합니다..."
@@ -184,5 +178,4 @@ docker-compose down || true
 echo "🏗️ Docker 이미지를 빌드하고 컨테이너를 시작합니다..."
 docker-compose up -d --build
 
-echo "✅ 서비스 배포가 완료되었습니다!"</parameter>
-</invoke>
+echo "✅ 서비스 배포가 완료되었습니다!"
