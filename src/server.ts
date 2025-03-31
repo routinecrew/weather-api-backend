@@ -81,7 +81,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       try {
         const timeStr = row.time;
         // CSV의 time 문자열이 유효한 날짜 형식인지 확인
-        const timeDate = new Date(timeStr);
+        const cleanTimeStr = timeStr.replace(/\s+/g, ' ').trim();
+        const timeDate = new Date(cleanTimeStr);
 
         if (isNaN(timeDate.getTime())) {
           logger.warn(`Invalid date format in row: ${JSON.stringify(row)}`);
@@ -176,7 +177,7 @@ function findCsvFile(filename: string): string {
 // ===== Application Bootstrap =====
 const bootstrap = async () => {
   const app = (await import('./shared/configs/express.config')).default;
-  const port = Number(process.env.PORT || 3000);
+  const port = Number(process.env.PORT || 8080);
 
   const seq = await connectPostgres();
 

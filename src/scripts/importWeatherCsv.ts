@@ -83,8 +83,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       try {
         const timeStr = row.time;
         // CSV의 time 문자열이 유효한 날짜 형식인지 확인
-        const timeDate = new Date(timeStr);
-
+        const cleanTimeStr = timeStr.replace(/\s+/g, ' ').trim();
+        const timeDate = new Date(cleanTimeStr);
+        
         if (isNaN(timeDate.getTime())) {
           logger.warn(`Invalid date format in row: ${JSON.stringify(row)}`);
           errorCount++;
