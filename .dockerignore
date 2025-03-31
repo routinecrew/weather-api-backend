@@ -1,10 +1,50 @@
-data/
-node_modules
-*.log
-*.md
-.git
-.env
-
-node_modules
+# Node.js 관련
+node_modules/
 npm-debug.log
-data/postgres
+yarn-error.log
+pnpm-debug.log
+
+# 빌드 결과물
+dist/
+
+# 환경 변수 파일
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# 로그 파일
+logs/
+*.log
+npm-debug.log*
+
+# Git 관련
+.git/
+.gitignore
+
+# IDE 및 편집기 설정
+.vscode/
+.idea/
+*.sublime-workspace
+
+# macOS 시스템 파일
+.DS_Store
+
+# 테스트 및 임시 파일
+coverage/
+*.tmp
+*.temp
+
+# 데이터베이스 관련 (Sequelize 관련 파일)
+migrations/
+seeders/
+
+# 리소스 파일 (필요에 따라 조정)
+resource/temps/
+resource/uploads/
+
+# Dockerfile 및 Docker Compose 파일 (필요 시)
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml

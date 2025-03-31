@@ -1,5 +1,0 @@
-# eslint ignore test files
-node_modules
-
-build
-dist
