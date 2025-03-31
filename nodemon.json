@@ -1,6 +1,0 @@
-{
-  "exec": "ts-node -r tsconfig-paths/register src/server.ts",
-  "watch": [".env", "src", "proto", "tsconfig.json", "server.ts"],
-  "ext": "ts,json"
-}
-
