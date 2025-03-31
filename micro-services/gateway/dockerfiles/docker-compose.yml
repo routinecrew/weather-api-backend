@@ -4,14 +4,14 @@ services:
   weather-postgres:
     build:
       context: ..
-      dockerfile: dockerfiles/Dockerfile.postgre
+      dockerfile: dockerfiles/Dockerfile.postgres  # 수정된 경로
     container_name: weather-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DATABASE}
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # Docker 볼륨으로 변경
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -38,8 +38,8 @@ services:
 
   weather-service:
     build:
-      context: ../../..
-      dockerfile: micro-services/gateway/dockerfiles/Dockerfile
+      context: ./micro-services/gateway  # 컨텍스트 최적화
+      dockerfile: dockerfiles/Dockerfile
     container_name: weather-service
     environment:
       NODE_ENV: ${NODE_ENV:-production}
@@ -54,7 +54,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       TZ: ${TZ:-Asia/Seoul}
       APP_NAME: ${APP_NAME:-weather-service}
-    # 볼륨 마운트는 일단 제거하고 필요하면 나중에 추가
     depends_on:
       - weather-postgres
       - weather-redis

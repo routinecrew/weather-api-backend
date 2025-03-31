@@ -10,10 +10,11 @@ RUN npm install -g pnpm
 RUN apk add --no-cache bash
 
 # 모노레포 루트 컨텍스트에 맞게 수정
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY micro-services/gateway/package.json ./micro-services/gateway/
-COPY tsconfig.base.json ./
-COPY micro-services/gateway/tsconfig.json ./micro-services/gateway/
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ../../
+COPY micro-services/gateway/package.json ./
+COPY tsconfig.base.json ../../
+COPY micro-services/gateway/tsconfig.json ./
+COPY . ./
 
 # 소스 코드 복사
 COPY micro-services/gateway/ ./micro-services/gateway/
