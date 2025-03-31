@@ -12,13 +12,13 @@ if [ ! -f .env ]; then
     cat > .env << EOF
 NODE_ENV=production
 PORT=3000
-POSTGRES_HOST=weather-postgres
+POSTGRES_HOST=43.202.164.46
 POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres_password
+POSTGRES_USER=weather_user
+POSTGRES_PASSWORD=secure_password_2025$ 
 POSTGRES_DATABASE=weather_db
 TZ=Asia/Seoul
-APP_NAME=weather-service
+APP_NAME=weather-servic
 EOF
   }
 fi
