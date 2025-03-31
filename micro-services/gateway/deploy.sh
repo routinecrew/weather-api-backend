@@ -1,21 +1,32 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting gateway service deployment..."
+echo "🚀 서비스 배포를 시작합니다..."
 
-# 현재 디렉토리는 micro-services/gateway 입니다
+# 필요한 디렉토리가 없으면 생성
+mkdir -p data/postgres
+mkdir -p database/postgres.d
+
+# init.sql 파일이 없으면 생성
+if [ ! -f database/postgres.d/init.sql ]; then
+  echo "init.sql 파일을 생성합니다..."
+  cat > database/postgres.d/init.sql << EOF
+SELECT 'CREATE DATABASE weather_db'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'weather_db')\gexec
+EOF
+fi
 
 # .env 파일이 없으면 생성
 if [ ! -f .env ]; then
-  echo "📝 Creating .env file..."
-  cp .env.production .env || cp .env.example .env || {
+  echo "📝 .env 파일을 생성합니다..."
+  cp .env.production .env 2>/dev/null || cp .env.example .env 2>/dev/null || {
     cat > .env << EOF
 NODE_ENV=production
 PORT=3000
-POSTGRES_HOST=43.202.164.46
+POSTGRES_HOST=weather-postgres
 POSTGRES_PORT=5432
 POSTGRES_USER=weather_user
-POSTGRES_PASSWORD=secure_password_2025\$ 
+POSTGRES_PASSWORD=secure_password_2025$
 POSTGRES_DATABASE=weather_db
 TZ=Asia/Seoul
 APP_NAME=weather-service
@@ -23,17 +34,15 @@ EOF
   }
 fi
 
-# 환경 변수 로드
-export $(grep -v '^#' .env | xargs)
+# Move to dockerfiles directory
+cd dockerfiles
 
-# 모노레포 루트 디렉토리로 이동
-cd ../../
-
-# 컨테이너 중지 및 시작
+# Stop existing containers
 echo "🛑 Stopping existing containers..."
-docker-compose -f micro-services/gateway/dockerfiles/docker-compose.yml down || true
+docker-compose down || true
 
+# Build and start containers
 echo "🏗️ Building and starting containers..."
-docker-compose -f micro-services/gateway/dockerfiles/docker-compose.yml up -d --build
+docker-compose up -d --build
 
 echo "✅ Gateway service deployment completed successfully!"

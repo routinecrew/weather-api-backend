@@ -4,14 +4,14 @@ services:
   weather-postgres:
     build:
       context: ..
-      dockerfile: dockerfiles/Dockerfile.postgre
+      dockerfile: dockerfiles/Dockerfile.postgres
     container_name: weather-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DATABASE}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../data/postgres:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -26,8 +26,8 @@ services:
 
   weather-service:
     build:
-      context: ../../
-    dockerfile: micro-services/gateway/dockerfiles/Dockerfile
+      context: ../../..
+      dockerfile: micro-services/gateway/dockerfiles/Dockerfile
     container_name: weather-service
     environment:
       NODE_ENV: ${NODE_ENV:-production}
