@@ -1,40 +1,59 @@
-# Use node:18 as the base image
-FROM node:18
+# 빌드 단계
+FROM node:18-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install pnpm globally (필요하다면 유지, 필요없으면 npm 사용)
+# Install pnpm
 RUN npm install -g pnpm
 
-# Download wait-for-it script (데이터베이스 연결 대기에 유용)
-RUN curl -o /wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh && chmod +x /wait-for-it.sh
-
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY micro-services/gateway/package.json ./micro-services/gateway/
 
 # Install dependencies
-RUN npm install
+RUN pnpm install
 
-# Copy tsconfig.json
-COPY tsconfig.json ./
+# Copy tsconfig files
+COPY tsconfig.base.json ./
+COPY micro-services/gateway/tsconfig.json ./micro-services/gateway/
 
-# Copy environment files
-COPY .env* ./
+# Copy source code for gateway service only
+COPY micro-services/gateway/ ./micro-services/gateway/
 
-# Copy source code
-COPY src/ ./src/
-COPY shared/ ./shared/
-COPY service-init/ ./service-init/
+# Build application
+RUN pnpm --filter @micro-services/gateway build
 
-# Set NODE_ENV to production unless specified otherwise
+# 프로덕션 단계
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files for production
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY micro-services/gateway/package.json ./micro-services/gateway/
+
+# Install production dependencies only
+RUN pnpm install --prod
+
+# Copy built files from builder stage
+COPY --from=builder /app/micro-services/gateway/dist ./micro-services/gateway/dist
+
+# Set NODE_ENV to production
 ENV NODE_ENV=production
+ENV PORT=3000
 
-# Set timezone
-ENV TZ=Asia/Seoul
-
-# Expose the application port
+# Expose port
 EXPOSE 3000
 
-# Command to start the application
-CMD ["npm", "start"]
+# Add wait-for-it script
+ADD https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh /wait-for-it.sh
+RUN chmod +x /wait-for-it.sh
+
+# Set working directory to gateway service
+WORKDIR /app/micro-services/gateway
+
+# Start the application
+CMD ["/wait-for-it.sh", "weather-postgres:5432", "--", "node", "dist/server.js"]
