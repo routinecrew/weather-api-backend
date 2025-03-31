@@ -6,6 +6,6 @@ LABEL maintainer="kang san"
 WORKDIR /docker-entrypoint-initdb.d/
 
 # 컨텍스트(서비스 루트)를 기준으로 경로 지정
-COPY database/init.sql ./
+COPY database/postgres.d/init.sql ./
 
 RUN chmod 755 ./init.sql
