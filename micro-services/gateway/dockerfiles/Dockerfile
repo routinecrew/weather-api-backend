@@ -3,25 +3,46 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# 소스 코드 복사
-COPY . .
+# Install pnpm
+RUN npm install -g pnpm
 
-# 의존성 설치 및 빌드
-RUN npm install
-RUN npm run build
+# 모노레포 구조에 맞는 파일들 복사
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.base.json ./
+COPY micro-services/gateway/package.json ./micro-services/gateway/
+COPY micro-services/gateway/tsconfig.json ./micro-services/gateway/
+
+# 의존성 설치
+RUN pnpm install
+
+# 소스 코드 복사
+COPY micro-services/gateway/ ./micro-services/gateway/
+
+# 빌드
+WORKDIR /app/micro-services/gateway
+RUN pnpm build
 
 # 프로덕션 단계
 FROM node:18-alpine
 
 WORKDIR /app
 
-# package.json과 빌드된 파일만 복사
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/src/IPB_250104_250305.csv ./dist/
+# Install pnpm
+RUN npm install -g pnpm
+
+# 모노레포 파일 복사
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY micro-services/gateway/package.json ./micro-services/gateway/
 
 # 프로덕션 의존성만 설치
-RUN npm install --only=production
+RUN pnpm install --prod
+
+# 빌드된 파일 복사
+COPY --from=builder /app/micro-services/gateway/dist ./micro-services/gateway/dist
+COPY --from=builder /app/micro-services/gateway/src/IPB_250104_250305.csv ./micro-services/gateway/dist/
+
+# 작업 디렉토리 설정
+WORKDIR /app/micro-services/gateway
 
 # 환경 변수 설정
 ENV NODE_ENV=production
@@ -30,5 +51,5 @@ ENV PORT=3000
 # 포트 노출
 EXPOSE 3000
 
-# 애플리케이션 시작
+# 앱 실행
 CMD ["node", "dist/server.js"]
