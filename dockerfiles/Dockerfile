@@ -30,6 +30,8 @@ COPY package.json pnpm-lock.yaml ./
 
 # 프로덕션 의존성 설치 (bcrypt를 새로 컴파일)
 RUN pnpm install --prod
+# bcrypt 명시적으로 재빌드 추가 
+RUN cd node_modules/bcrypt && npm rebuild bcrypt --build-from-source
 
 # 빌드된 파일 복사
 COPY --from=builder /app/dist ./dist/
