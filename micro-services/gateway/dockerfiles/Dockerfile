@@ -6,10 +6,8 @@ WORKDIR /app
 # 소스 코드 복사
 COPY . .
 
-# 의존성 설치
+# 의존성 설치 및 빌드
 RUN npm install
-
-# 애플리케이션 빌드
 RUN npm run build
 
 # 프로덕션 단계
@@ -17,7 +15,7 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# package.json과 빌드된 파일 복사
+# package.json과 빌드된 파일만 복사
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/IPB_250104_250305.csv ./dist/

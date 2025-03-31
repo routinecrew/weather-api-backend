@@ -4,7 +4,7 @@ services:
   weather-postgres:
     build:
       context: ..
-      dockerfile: dockerfiles/Dockerfile.postgres
+      dockerfile: dockerfiles/Dockerfile.postgre  # .postgres가 아닌 .postgre로 수정
     container_name: weather-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}

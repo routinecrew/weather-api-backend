@@ -26,15 +26,12 @@ fi
 # 환경 변수 로드
 export $(grep -v '^#' .env | xargs)
 
-# dockerfiles 디렉토리로 이동 (docker-compose.yml이 있는 위치)
-cd dockerfiles
-
 # 이미 실행 중인 컨테이너가 있으면 중지
 echo "🛑 Stopping existing containers..."
-docker-compose down || true
+docker-compose -f dockerfiles/docker-compose.yml down || true
 
 # Docker 이미지 빌드 및 컨테이너 시작
 echo "🏗️ Building and starting containers..."
-docker-compose up -d --build
+docker-compose -f dockerfiles/docker-compose.yml up -d --build
 
 echo "✅ Gateway service deployment completed successfully!"
