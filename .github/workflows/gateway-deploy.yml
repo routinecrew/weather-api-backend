@@ -23,21 +23,21 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
+          cache: 'pnpm'
           cache-dependency-path: '**/package-lock.json'
           
       - name: Install dependencies
         working-directory: micro-services/gateway
-        run: npm ci
+        run: pnpm ci
         
       - name: Build application
         working-directory: micro-services/gateway
-        run: npm run build
+        run: pnpm run build
         
       # 테스트가 있다면 추가
       # - name: Run tests
       #   working-directory: micro-services/gateway
-      #   run: npm test
+      #   run: pnpm test
       
       - name: Cache build artifacts
         uses: actions/cache@v3

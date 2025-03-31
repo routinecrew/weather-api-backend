@@ -38,7 +38,7 @@ services:
 
   weather-service:
     build:
-      context: ../..       # 상위 디렉토리로 컨텍스트 변경
+      context: ../../..     # 상위 디렉토리로 컨텍스트 변경
       dockerfile: micro-services/gateway/dockerfiles/Dockerfile
     container_name: weather-service
     environment:
