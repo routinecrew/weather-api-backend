@@ -60,9 +60,11 @@ version: '3.8'
 services:
   weather-postgres:
     build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile.postgres
+      context: ..
+      dockerfile: Dockerfile.postgres # dockerfiles/ 하위 경로 제거
     container_name: weather-postgres
+    env_file:
+      - .env # .env 파일 명시적 로드
     environment:
       POSTGRES_USER: \${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-postgres123}
@@ -83,9 +85,11 @@ services:
 
   weather-service:
     build:
-      context: .
-      dockerfile: dockerfiles/Dockerfile
+      context: ..
+      dockerfile: Dockerfile # dockerfiles/ 하위 경로 제거
     container_name: weather-service
+    env_file:
+      - .env # .env 파일 명시적 로드
     environment:
       NODE_ENV: \${NODE_ENV:-production}
       PORT: \${PORT:-3000}
