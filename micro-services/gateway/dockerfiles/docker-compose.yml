@@ -38,7 +38,7 @@ services:
 
   weather-service:
     build:
-      context: ..
+      context: ../../..
       dockerfile: dockerfiles/Dockerfile
     container_name: weather-service
     environment:
