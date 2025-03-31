@@ -4,7 +4,6 @@ set -e
 echo "🚀 서비스 배포를 시작합니다..."
 
 # 필요한 디렉토리 생성
-mkdir -p data/postgres
 mkdir -p database/postgres.d
 mkdir -p dockerfiles
 
@@ -54,10 +53,9 @@ fi
 # .env 파일을 dockerfiles 디렉토리에 복사
 cp .env dockerfiles/.env
 
-# docker-compose.yml 파일이 없으면 생성
-if [ ! -f dockerfiles/docker-compose.yml ]; then
-  echo "docker-compose.yml 파일을 생성합니다..."
-  cat > dockerfiles/docker-compose.yml << EOF
+# docker-compose.yml 파일 생성
+echo "docker-compose.yml 파일을 생성합니다..."
+cat > dockerfiles/docker-compose.yml << EOF
 version: '3.8'
 
 services:
@@ -67,15 +65,15 @@ services:
       dockerfile: dockerfiles/Dockerfile.postgres
     container_name: weather-postgres
     environment:
-      POSTGRES_USER: \${POSTGRES_USER}
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-      POSTGRES_DB: \${POSTGRES_DATABASE}
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: \${POSTGRES_DATABASE:-weather_db}
     volumes:
-      - ../data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "\${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-postgres}"]
       timeout: 20s
       interval: 5s
       start_period: 5s
@@ -94,9 +92,9 @@ services:
       PORT: \${PORT:-3000}
       POSTGRES_HOST: weather-postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: \${POSTGRES_USER}
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-      POSTGRES_DATABASE: \${POSTGRES_DATABASE}
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DATABASE: \${POSTGRES_DATABASE:-weather_db}
       TZ: \${TZ:-Asia/Seoul}
       APP_NAME: \${APP_NAME:-weather-service}
     depends_on:
@@ -114,12 +112,10 @@ networks:
 volumes:
   postgres_data:
 EOF
-fi
 
-# Dockerfile이 없으면 생성
-if [ ! -f dockerfiles/Dockerfile ]; then
-  echo "Dockerfile 파일을 생성합니다..."
-  cat > dockerfiles/Dockerfile << EOF
+# Dockerfile 생성
+echo "Dockerfile 파일을 생성합니다..."
+cat > dockerfiles/Dockerfile << EOF
 # 빌드 단계
 FROM node:18-alpine AS builder
 
@@ -177,13 +173,12 @@ EXPOSE 3000
 # 앱 실행 (데이터베이스 연결 대기 후)
 CMD ["/wait-for-it.sh", "weather-postgres:5432", "--", "node", "dist/server.js"]
 EOF
-fi
 
 # 환경 변수 출력
 echo "📋 현재 환경 변수:"
-echo "POSTGRES_USER=${POSTGRES_USER}"
-echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}"
-echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}"
+echo "POSTGRES_USER=${POSTGRES_USER:-postgres}"
+echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres123}"
+echo "POSTGRES_DATABASE=${POSTGRES_DATABASE:-weather_db}"
 
 # dockerfiles 디렉토리로 이동
 cd dockerfiles
