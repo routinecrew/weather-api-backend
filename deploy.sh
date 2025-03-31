@@ -31,12 +31,6 @@ COPY postgres.d/init.sql ./
 RUN chmod 755 ./init.sql
 EOF
 
-# package.json 수정 - pg 패키지 추가
-echo "package.json에 pg 패키지를 추가합니다..."
-# 임시 파일에 jq를 사용하여 pg 패키지 추가
-cat package.json | sed 's/"dependencies": {/"dependencies": {\n    "pg": "^8.11.3",/g' > package.json.tmp
-mv package.json.tmp package.json
-
 # .env 파일 생성
 echo "📝 .env 파일을 생성합니다..."
 cat > .env << EOF
@@ -69,6 +63,7 @@ COPY .env /app/.env
 
 # 의존성 설치 및 빌드
 RUN pnpm install
+RUN pnpm add pg@8.11.3
 RUN pnpm build
 
 # 프로덕션 단계
@@ -85,6 +80,7 @@ COPY .env /app/.env
 
 # 프로덕션 의존성 설치
 RUN pnpm install --prod
+RUN pnpm add pg@8.11.3
 
 # 빌드된 파일 복사
 COPY --from=builder /app/dist ./dist/
@@ -98,6 +94,11 @@ RUN chmod +x /wait-for-it.sh
 # 환경 변수 설정
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV POSTGRES_HOST=weather-postgres
+ENV POSTGRES_PORT=5432
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=postgres123
+ENV POSTGRES_DATABASE=weather_db
 
 # 포트 노출
 EXPOSE 3000
@@ -172,15 +173,13 @@ volumes:
   postgres_data:
 EOF
 
-# 환경 변수 출력
-echo "📋 현재 환경 변수:"
-echo "POSTGRES_USER=${POSTGRES_USER:-postgres}"
-echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres123}"
-echo "POSTGRES_DATABASE=${POSTGRES_DATABASE:-weather_db}"
+# 기존 볼륨 삭제
+echo "🗑️ 기존 볼륨을 삭제합니다..."
+docker volume rm postgres_data || true
 
-# 기존 컨테이너 중지
-echo "🛑 기존 컨테이너를 중지합니다..."
-docker-compose down || true
+# 기존 컨테이너 중지 및 삭제
+echo "🛑 기존 컨테이너를 중지하고 삭제합니다..."
+docker-compose down -v || true
 
 # Docker 이미지 빌드 및 컨테이너 시작
 echo "🏗️ Docker 이미지를 빌드하고 컨테이너를 시작합니다..."
