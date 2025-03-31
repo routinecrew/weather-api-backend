@@ -150,6 +150,29 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
   logger.info(`🏁 CSV import completed. Success: ${successCount}, Errors: ${errorCount}`);
 }
 
+// ===== Find CSV File Function =====
+function findCsvFile(filename: string): string {
+  // 가능한 경로들을 순서대로 확인
+  const possiblePaths = [
+    join(path, 'dist', filename),
+    join(path, filename),         // root 디렉토리
+    join(path, 'src', filename),  // src 디렉토리
+    join('/', 'app', 'dist', filename),  // 도커 컨테이너 내 dist 디렉토리
+    join('/', 'app', filename),   // 도커 컨테이너 내 root 디렉토리
+  ];
+
+  for (const filepath of possiblePaths) {
+    if (fs.existsSync(filepath)) {
+      logger.info(`CSV 파일을 찾았습니다: ${filepath}`);
+      return filepath;
+    }
+  }
+  
+  // 파일을 찾지 못한 경우 기본 경로 반환
+  logger.warn(`CSV 파일을 찾지 못했습니다. 기본 경로를 사용합니다.`);
+  return join(path, 'dist', filename);
+}
+
 // ===== Application Bootstrap =====
 const bootstrap = async () => {
   const app = (await import('./shared/configs/express.config')).default;
@@ -167,8 +190,9 @@ const bootstrap = async () => {
     if (existingDataCount === 0) {
       logger.info('📊 No weather data found. Starting CSV import...');
 
-      // CSV 파일 경로
-      const csvFilePath = join(path, 'src', 'IPB_250104_250305.csv');
+      // CSV 파일 경로 찾기
+      const csvFilename = 'IPB_250104_250305.csv';
+      const csvFilePath = findCsvFile(csvFilename);
 
       // CSV 데이터 가져오기
       await importWeatherDataFromCsv(csvFilePath);
@@ -182,27 +206,33 @@ const bootstrap = async () => {
     // CSV 가져오기 실패해도 서버는 계속 실행
   }
 
-  const server = app.listen(port, () => {
-    logger.info(`🚀 Server is running at http://localhost:${port}`);
-    logger.info(`🚀 Starting server... ${showMemoryUsage()}`);
-  });
-
-  // Graceful Shutdown
-  const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
-    logger.info(`👻 Server is shutting down... ${signal}`);
-
-    // Close database connection
-    await (seq as Sequelize).close();
-    logger.info('Database connection closed');
-
-    // Close HTTP server
-    server.close(() => {
-      logger.info('HTTP server closed');
+  // 포트 사용 가능 여부 확인
+  try {
+    const server = app.listen(port, () => {
+      logger.info(`🚀 Server is running at http://localhost:${port}`);
+      logger.info(`🚀 Starting server... ${showMemoryUsage()}`);
     });
-  };
 
-  process.on('SIGINT', shutdown.bind(null, 'SIGINT'));
-  process.on('SIGTERM', shutdown.bind(null, 'SIGTERM'));
+    // Graceful Shutdown
+    const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
+      logger.info(`👻 Server is shutting down... ${signal}`);
+
+      // Close database connection
+      await (seq as Sequelize).close();
+      logger.info('Database connection closed');
+
+      // Close HTTP server
+      server.close(() => {
+        logger.info('HTTP server closed');
+      });
+    };
+
+    process.on('SIGINT', shutdown.bind(null, 'SIGINT'));
+    process.on('SIGTERM', shutdown.bind(null, 'SIGTERM'));
+  } catch (error) {
+    logger.error(`서버 시작 실패 (포트 ${port}): ${error}`);
+    process.exit(1);
+  }
 };
 
 configDotenv();
