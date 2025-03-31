@@ -8,11 +8,6 @@ pnpm-debug.log
 dist/
 
 # 환경 변수 파일
-.env
-.env.local
-.env.development
-.env.test
-.env.production
 
 # 로그 파일
 logs/
