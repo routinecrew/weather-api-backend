@@ -10,7 +10,6 @@ RUN pnpm build
 # 프로덕션 단계
 FROM node:18-alpine
 WORKDIR /app
-# bash만 설치 (wait-for-it.sh 실행용)
 RUN apk add --no-cache bash && npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 COPY .env /app/.env  
