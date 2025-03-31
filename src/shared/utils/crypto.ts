@@ -1,33 +1,45 @@
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto';
 
 const AES_KEY = process.env['AES_KEY'] ?? 'abcde12345abcde12345abcde12345ab';
-const IV = AES_KEY.substring(0, 16);
+const IV = randomBytes(16); // Using random IV instead of substring for better security
 
+// Simple hash generation using crypto
 export const generateHash = (data: string | Buffer) => {
-  const salt = bcrypt.genSaltSync(Number(process.env['SALT_ROUNDS']));
-  // Buffer를 문자열로 변환
   const dataString = Buffer.isBuffer(data) ? data.toString() : data;
-  return bcrypt.hashSync(dataString, salt);
+  return createHash('sha256')
+    .update(dataString + (process.env['SALT'] || 'default-salt'))
+    .digest('hex');
 };
 
+// Simple hash comparison
 export const compareHash = (target: string | Buffer, hash: string) => {
-  // Buffer를 문자열로 변환
   const targetString = Buffer.isBuffer(target) ? target.toString() : target;
-  return bcrypt.compareSync(targetString, hash);
+  const newHash = createHash('sha256')
+    .update(targetString + (process.env['SALT'] || 'default-salt'))
+    .digest('hex');
+  return newHash === hash;
 };
 
 export const encryptAES = (text: string) => {
-  const cipher = crypto.createCipheriv('AES-256-GCM', Buffer.from(AES_KEY), IV);
-  const encrypted = cipher.update(text);
-
-  return Buffer.concat([encrypted, cipher.final()]).toString('hex');
+  const cipher = createCipheriv('aes-256-gcm', Buffer.from(AES_KEY), IV);
+  const encrypted = cipher.update(text, 'utf8');
+  const finalBuffer = Buffer.concat([encrypted, cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  
+  // Return IV, encrypted data, and auth tag together
+  return Buffer.concat([IV, finalBuffer, authTag]).toString('hex');
 };
 
 export const decryptAES = (text: string) => {
-  const encrypted = Buffer.from(text, 'hex');
-  const decipher = crypto.createDecipheriv('AES-256-GCM', Buffer.from(AES_KEY), IV);
+  const buffer = Buffer.from(text, 'hex');
+  // Extract IV (first 16 bytes), auth tag (last 16 bytes), and encrypted data (middle)
+  const iv = buffer.subarray(0, 16);
+  const authTag = buffer.subarray(-16);
+  const encrypted = buffer.subarray(16, -16);
+  
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(AES_KEY), iv);
+  decipher.setAuthTag(authTag);
   const decrypted = decipher.update(encrypted);
-
-  return Buffer.concat([decrypted, decipher.final()]).toString();
+  
+  return Buffer.concat([decrypted, decipher.final()]).toString('utf8');
 };
