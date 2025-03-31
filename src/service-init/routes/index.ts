@@ -12,8 +12,9 @@ const apikeyExcludedPaths = [
 const unless =
   (paths: { method: string; path: string }[], middleware: (req: Request, res: Response, next: NextFunction) => any) =>
   (req: Request, res: Response, next: NextFunction) => {
+    const fullPath = req.originalUrl.split('?')[0]; // 전체 경로 사용
     for (const e of paths) {
-      if (req.method.toUpperCase() === e.method && req.path === e.path) {
+      if (req.method.toUpperCase() === e.method && fullPath === e.path) {
         return next();
       }
     }
