@@ -6,6 +6,9 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
+# Alpine 이미지인 경우 bash 설치 추가
+RUN apk add --no-cache bash
+
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY micro-services/gateway/package.json ./micro-services/gateway/

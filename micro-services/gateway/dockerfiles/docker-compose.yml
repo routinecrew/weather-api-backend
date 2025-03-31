@@ -63,7 +63,7 @@ services:
     depends_on:
       - weather-postgres
       - weather-redis
-    entrypoint: ["/wait-for-it.sh", "weather-postgres:5432", "--", "node", "dist/server.js"]
+    entrypoint: ["/bin/sh", "-c", "node dist/server.js"]
     ports:
       - "${PORT:-3000}:3000"
     networks:
