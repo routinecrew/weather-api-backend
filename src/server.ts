@@ -4,6 +4,10 @@ import { Weather } from './service-init/models/main/weather';
 import { configDotenv } from './shared/configs/dotenv.config';
 import { connectPostgres } from './shared/configs/postgres.config';
 import { Sequelize } from 'sequelize-typescript';
+import fs from 'fs';
+
+// Docker 환경 표시 설정
+process.env.DOCKER_ENV = fs.existsSync('/.dockerenv') ? 'true' : 'false';
 
 // 스크립트 함수 가져오기
 import { findCsvFile, importWeatherDataFromCsv } from './scripts/csvImportHelpers';
@@ -91,6 +95,7 @@ async function createSampleWeatherData() {
   
   try {
     // 배치로 저장
+    logger.info(`샘플 데이터 ${weatherBatch.length}개 저장 시도...`);
     await Weather.bulkCreate(weatherBatch);
     logger.info(`✅ ${weatherBatch.length}개의 샘플 날씨 데이터가 생성되었습니다.`);
     return weatherBatch.length;
@@ -100,14 +105,8 @@ async function createSampleWeatherData() {
   }
 }
 
-// ===== Application Bootstrap =====
-const bootstrap = async () => {
-  const app = (await import('./shared/configs/express.config')).default;
-  const port = Number(process.env.PORT || 9092);
-
-  const seq = await connectPostgres();
-
-  // 데이터 확인
+// ===== CSV 데이터 로드 함수 =====
+async function loadWeatherData(): Promise<boolean> {
   try {
     // 데이터가 이미 있는지 확인
     const existingDataCount = await Weather.count();
@@ -115,51 +114,88 @@ const bootstrap = async () => {
 
     // 데이터가 없으면 CSV 파일에서 가져오기
     if (existingDataCount === 0) {
-      logger.info('💾 날씨 데이터가 없습니다. CSV 파일에서 데이터를 가져옵니다...');
+      logger.info('💾 날씨 데이터가 없습니다. 데이터를 로드합니다...');
       
-      try {
-        // CSV 파일 가져오기 시도
-        const csvFilename = 'IPB_250104_250305.csv';
-        
-        try {
-          // CSV 파일 경로 찾기
-          const csvFilePath = findCsvFile(csvFilename);
-          
-          // CSV 파일 가져오기
-          await importWeatherDataFromCsv(csvFilePath);
-          logger.info('✅ CSV 데이터 가져오기가 완료되었습니다.');
-        } catch (fileError) {
-          // CSV 파일을 찾을 수 없는 경우
-          logger.warn('⚠️ CSV 파일을 찾을 수 없습니다. 샘플 데이터를 생성합니다.');
-          await createSampleWeatherData();
+      // 먼저 Docker 환경의 고정 경로 시도
+      if (process.env.DOCKER_ENV === 'true') {
+        const dockerPath = '/app/dist/IPB_250104_250305.csv';
+        if (fs.existsSync(dockerPath)) {
+          logger.info(`Docker 컨테이너 내 CSV 파일 발견: ${dockerPath}`);
+          await importWeatherDataFromCsv(dockerPath);
+          logger.info('✅ Docker 환경에서 CSV 데이터 가져오기가 완료되었습니다.');
+          return true;
         }
-      } catch (dataError) {
-        logger.error('❌ 데이터 가져오기 실패:', dataError);
+      }
+      
+      // 그 다음 findCsvFile 함수로 파일 찾기 시도
+      try {
+        const csvFilename = 'IPB_250104_250305.csv';
+        const csvFilePath = findCsvFile(csvFilename);
+        await importWeatherDataFromCsv(csvFilePath);
+        logger.info('✅ CSV 데이터 가져오기가 완료되었습니다.');
+        return true;
+      } catch (error: any) { // 'any' 타입으로 명시적 지정
+        // CSV 파일을 찾지 못한 경우
+        logger.warn(`⚠️ CSV 파일을 찾지 못했습니다: ${error.message}`);
+        
+        // 샘플 데이터 생성
+        await createSampleWeatherData();
+        return true;
       }
     }
+    
+    return true;
   } catch (error) {
-    logger.error('❌ 데이터 확인 실패:', error);
+    logger.error('❌ 데이터 로드 중 오류 발생:', error);
+    return false;
   }
+}
 
-  // 서버 시작
-  const server = app.listen(port, () => {
-    logger.info(`🚀 Server is running at http://localhost:${port}`);
-    logger.info(`🚀 Starting server... ${showMemoryUsage()}`);
-  });
+// ===== Application Bootstrap =====
+const bootstrap = async () => {
+  // 환경 변수 로드
+  configDotenv();
+  
+  logger.info(`🌍 실행 환경: ${process.env.NODE_ENV}`);
+  logger.info(`🐳 Docker 환경: ${process.env.DOCKER_ENV}`);
+  
+  try {
+    // Express 앱 가져오기
+    const app = (await import('./shared/configs/express.config')).default;
+    const port = Number(process.env.PORT || 9092);
 
-  // Graceful Shutdown
-  const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
-    logger.info(`👻 Server is shutting down... ${signal}`);
-    await (seq as Sequelize).close();
-    logger.info('Database connection closed');
-    server.close(() => {
-      logger.info('HTTP server closed');
+    // 데이터베이스 연결
+    logger.info('🔌 데이터베이스에 연결 중...');
+    const seq = await connectPostgres();
+    logger.info('✅ 데이터베이스 연결 성공!');
+    
+    // 데이터 로드 (CSV 또는 샘플 데이터)
+    await loadWeatherData();
+
+    // 서버 시작
+    const server = app.listen(port, () => {
+      logger.info(`🚀 서버가 실행되었습니다: http://localhost:${port}`);
+      logger.info(`🚀 서버 메모리 사용량: ${showMemoryUsage()}`);
     });
-  };
 
-  process.on('SIGINT', shutdown.bind(null, 'SIGINT'));
-  process.on('SIGTERM', shutdown.bind(null, 'SIGTERM'));
+    // Graceful Shutdown
+    const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
+      logger.info(`👻 서버를 종료합니다... 신호: ${signal}`);
+      await (seq as Sequelize).close();
+      logger.info('데이터베이스 연결 종료');
+      server.close(() => {
+        logger.info('HTTP 서버 종료');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGINT', shutdown.bind(null, 'SIGINT'));
+    process.on('SIGTERM', shutdown.bind(null, 'SIGTERM'));
+  } catch (error) {
+    logger.error('❌ 서버 부팅 중 오류 발생:', error);
+    process.exit(1);
+  }
 };
 
-configDotenv();
+// 애플리케이션 시작
 bootstrap();
