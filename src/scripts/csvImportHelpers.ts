@@ -44,9 +44,13 @@ export function findCsvFile(filename: string): string {
 
 /**
  * 날짜 문자열을 파싱하는 강화된 함수
- * 다양한 형식과 특수 공백 문자를 처리
  */
-export function parseDate(dateStr: string): Date | null {
+export function parseDate(dateStr: string | undefined | null): Date | null {
+  if (!dateStr) {
+    logger.warn(`날짜 문자열이 제공되지 않았습니다: ${dateStr}`);
+    return null;
+  }
+
   const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
   
   const date = new Date(cleanDateStr);
@@ -123,7 +127,7 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
 
       for (const row of batch) {
         try {
-          const timeStr = row.time;
+          const timeStr = row.datetime; // 'time' 대신 'datetime'으로 수정
           const timeDate = parseDate(timeStr);
           
           if (!timeDate) {
