@@ -51,24 +51,38 @@ export function parseDate(dateStr: string | undefined | null): Date | null {
     return null;
   }
 
+  // "2025-01-0816:10:43" 형식 처리
+  const customFormatRegex = /^(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})$/;
+  const match = customFormatRegex.exec(dateStr);
+  if (match) {
+    const [, datePart, timePart] = match;
+    const formattedStr = `${datePart}T${timePart}`; // "2025-01-08T16:10:43"
+    const parsedDate = new Date(formattedStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+  }
+
+  // 기존 표준 형식 처리 (공백 포함)
   const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
-  
   const date = new Date(cleanDateStr);
   if (!isNaN(date.getTime())) {
     return date;
   }
-  
+
+  // "YYYY-MM-DD HH:MM:SS" 형식 처리
   const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
-  const match = regex.exec(dateStr);
-  if (match) {
-    const [, datePart, timePart] = match;
+  const fallbackMatch = regex.exec(dateStr);
+  if (fallbackMatch) {
+    const [, datePart, timePart] = fallbackMatch;
     const formattedStr = `${datePart}T${timePart}`;
     const parsedDate = new Date(formattedStr);
     if (!isNaN(parsedDate.getTime())) {
       return parsedDate;
     }
   }
-  
+
+  logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
   return null;
 }
 
