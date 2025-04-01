@@ -16,7 +16,7 @@ const readAll = {
   query: Joi.object<ListQuery>().keys({
     page: Joi.number().integer().min(1).default(1),
     count: Joi.number().integer().min(1).max(100).default(30),
-    sort: Joi.string().valid('id', 'name').default('createdAt'),
+    sort: Joi.string().valid('id', 'name', 'time', 'createdAt', 'updatedAt').default('createdAt'),
     dir: Joi.string().valid('ASC', 'DESC').default('DESC'),
     q: Joi.string().allow(null, '').default(''),
     type: Joi.string().valid('general', 'specific').optional(),
