@@ -141,52 +141,83 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
 
       for (const row of batch) {
         try {
-          const timeStr = row.datetime; // 'time' 대신 'datetime'으로 수정
+          const timeStr = row.datetime;
           const timeDate = parseDate(timeStr);
           
           if (!timeDate) {
-            logger.warn(`Invalid date format in row: ${JSON.stringify(row)}`);
+            logger.warn(`날짜 형식 오류: ${JSON.stringify(row)}`);
             errorCount++;
             continue;
           }
 
-          const weatherData: WeatherCreationAttributes = {
-            time: timeDate,
-            point: 1,
-            airTemperature: row.Air_Temperature1,
-            airHumidity: row.Air_Humidity1,
-            airPressure: row.Air_Pressure1,
-            soilTemperature: row.Soil_Temperature1,
-            soilHumidity: row.Soil_Humidity1,
-            soilEC: row.Soil_EC1,
-            pyranometer: row.Pyranometer1,
-            pasteTypeTemperature: row.Paste_type_temperature1,
-          };
+          // 각 포인트(1~5)별로 데이터 추출 및 저장
+          for (let point = 1; point <= 5; point++) {
+            // 해당 포인트의 필수 데이터가 있는지 확인
+            if (
+              row[`Air_Temperature${point}`] === undefined ||
+              row[`Air_Humidity${point}`] === undefined ||
+              row[`Air_Pressure${point}`] === undefined ||
+              row[`Soil_Temperature${point}`] === undefined ||
+              row[`Soil_Humidity${point}`] === undefined ||
+              row[`Soil_EC${point}`] === undefined ||
+              row[`Pyranometer${point}`] === undefined
+            ) {
+              // 해당 포인트 데이터가 없으면 건너뜀
+              continue;
+            }
 
-          const requiredFields = [
-            'airTemperature',
-            'airHumidity',
-            'airPressure',
-            'soilTemperature',
-            'soilHumidity',
-            'soilEC',
-            'pyranometer',
-          ];
+            const weatherData: WeatherCreationAttributes = {
+              time: timeDate,
+              point: point,
+              airTemperature: row[`Air_Temperature${point}`],
+              airHumidity: row[`Air_Humidity${point}`],
+              airPressure: row[`Air_Pressure${point}`],
+              soilTemperature: row[`Soil_Temperature${point}`],
+              soilHumidity: row[`Soil_Humidity${point}`],
+              soilEC: row[`Soil_EC${point}`],
+              pyranometer: row[`Pyranometer${point}`],
+            };
 
-          const isValid = requiredFields.every(
-            (field) =>
-              weatherData[field as keyof WeatherCreationAttributes] !== undefined &&
-              weatherData[field as keyof WeatherCreationAttributes] !== null,
-          );
+            // 포인트 1에만 있는 데이터
+            if (point === 1 && row[`Paste_type_temperature${point}`] !== undefined) {
+              weatherData.pasteTypeTemperature = row[`Paste_type_temperature${point}`];
+            }
 
-          if (isValid) {
-            weatherBatch.push(weatherData);
-          } else {
-            logger.warn(`Missing required fields in row: ${JSON.stringify(row)}`);
-            errorCount++;
+            // 포인트 5에만 있는 데이터
+            if (point === 5) {
+              if (row[`Wind_Speed${point}`] !== undefined) weatherData.windSpeed = row[`Wind_Speed${point}`];
+              if (row[`Wind_Direction${point}`] !== undefined) weatherData.windDirection = row[`Wind_Direction${point}`];
+              if (row[`Solar_Radiation${point}`] !== undefined) weatherData.solarRadiation = row[`Solar_Radiation${point}`];
+              if (row[`Rainfall${point}`] !== undefined) weatherData.rainfall = row[`Rainfall${point}`];
+              if (row[`CO2${point}`] !== undefined) weatherData.co2 = row[`CO2${point}`];
+            }
+
+            // 필수 필드 검증
+            const requiredFields = [
+              'airTemperature',
+              'airHumidity',
+              'airPressure',
+              'soilTemperature',
+              'soilHumidity',
+              'soilEC',
+              'pyranometer',
+            ];
+
+            const isValid = requiredFields.every(
+              (field) =>
+                weatherData[field as keyof WeatherCreationAttributes] !== undefined &&
+                weatherData[field as keyof WeatherCreationAttributes] !== null,
+            );
+
+            if (isValid) {
+              weatherBatch.push(weatherData);
+            } else {
+              logger.warn(`포인트 ${point}의 필수 필드 누락: ${JSON.stringify(row)}`);
+              errorCount++;
+            }
           }
         } catch (error) {
-          logger.error(`Error processing row: ${JSON.stringify(row)}`, error);
+          logger.error(`행 처리 중 오류 발생: ${JSON.stringify(row)}`, error);
           errorCount++;
         }
       }
@@ -202,14 +233,14 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
         }
 
         processedRows += batch.length;
-        logger.info(`✅ Processed batch ${batchIndex + 1}/${totalBatches} (${processedRows}/${csvData.length} rows)`);
+        logger.info(`✅ 배치 처리 완료 ${batchIndex + 1}/${totalBatches} (${processedRows}/${csvData.length} 행)`);
       } catch (error) {
-        logger.error(`Error saving batch ${batchIndex + 1}/${totalBatches}:`, error);
+        logger.error(`배치 ${batchIndex + 1}/${totalBatches} 저장 중 오류:`, error);
         errorCount += batch.length;
       }
     }
 
-    logger.info(`🏁 CSV import completed. Success: ${successCount}, Errors: ${errorCount}`);
+    logger.info(`🏁 CSV 가져오기 완료. 성공: ${successCount}, 오류: ${errorCount}`);
   } catch (error) {
     logger.error(`CSV 파일 처리 중 예외 발생: ${error}`);
     throw error;

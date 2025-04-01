@@ -46,6 +46,7 @@ async function createSampleWeatherData() {
   // 24시간 분량의 샘플 데이터 생성 (1시간 간격)
   const weatherBatch = [];
   
+  // 포인트 1의 샘플 데이터 (24개)
   for (let i = 0; i < 24; i++) {
     const time = new Date(yesterday);
     time.setHours(i);
@@ -67,7 +68,29 @@ async function createSampleWeatherData() {
     });
   }
   
-  // 5번 센서 데이터 추가 (몇 개만 샘플로)
+  // 포인트 2, 3, 4의 샘플 데이터 (각 포인트별 12개씩)
+  for (let point = 2; point <= 4; point++) {
+    for (let i = 0; i < 12; i++) {
+      const time = new Date(yesterday);
+      time.setHours(i * 2); // 2시간 간격
+      
+      const baseTemp = 20 + point + Math.sin(i * Math.PI / 6) * 4; // 포인트에 따라 약간 다른 온도
+      
+      weatherBatch.push({
+        time,
+        point,
+        airTemperature: baseTemp + (Math.random() * 2 - 1),
+        airHumidity: 55 + Math.random() * 30,
+        airPressure: 1010 + point + Math.random() * 5,
+        soilTemperature: baseTemp - 2 + Math.random(),
+        soilHumidity: 35 + point + Math.random() * 15,
+        soilEC: 0.6 + (point / 10) + Math.random() * 0.8,
+        pyranometer: i >= 3 && i <= 9 ? 250 + (point * 30) + Math.random() * 500 : Math.random() * 70
+      });
+    }
+  }
+  
+  // 포인트 5의 샘플 데이터 (6개)
   for (let i = 0; i < 6; i++) {
     const time = new Date(yesterday);
     time.setHours(i * 4); // 4시간 간격
@@ -112,6 +135,18 @@ async function loadWeatherData(): Promise<boolean> {
     const existingDataCount = await Weather.count();
     logger.info(`📊 DB에 ${existingDataCount}개의 날씨 데이터가 있습니다.`);
 
+    // 각 포인트별 데이터 개수 확인 및 로깅
+    if (existingDataCount > 0) {
+      const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
+        const count = await Weather.count({ where: { point } });
+        return { point, count };
+      }));
+      
+      stats.forEach(({ point, count }) => {
+        logger.info(`📊 포인트 ${point}의 데이터 개수: ${count}`);
+      });
+    }
+
     // 데이터가 없으면 CSV 파일에서 가져오기
     if (existingDataCount === 0) {
       logger.info('💾 날씨 데이터가 없습니다. 데이터를 로드합니다...');
@@ -123,6 +158,17 @@ async function loadWeatherData(): Promise<boolean> {
           logger.info(`Docker 컨테이너 내 CSV 파일 발견: ${dockerPath}`);
           await importWeatherDataFromCsv(dockerPath);
           logger.info('✅ Docker 환경에서 CSV 데이터 가져오기가 완료되었습니다.');
+          
+          // CSV 가져오기 후 포인트별 데이터 개수 출력
+          const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
+            const count = await Weather.count({ where: { point } });
+            return { point, count };
+          }));
+          
+          stats.forEach(({ point, count }) => {
+            logger.info(`📊 CSV 가져오기 후 포인트 ${point}의 데이터 개수: ${count}`);
+          });
+          
           return true;
         }
       }
@@ -133,6 +179,17 @@ async function loadWeatherData(): Promise<boolean> {
         const csvFilePath = findCsvFile(csvFilename);
         await importWeatherDataFromCsv(csvFilePath);
         logger.info('✅ CSV 데이터 가져오기가 완료되었습니다.');
+        
+        // CSV 가져오기 후 포인트별 데이터 개수 출력
+        const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
+          const count = await Weather.count({ where: { point } });
+          return { point, count };
+        }));
+        
+        stats.forEach(({ point, count }) => {
+          logger.info(`📊 CSV 가져오기 후 포인트 ${point}의 데이터 개수: ${count}`);
+        });
+        
         return true;
       } catch (error: any) { // 'any' 타입으로 명시적 지정
         // CSV 파일을 찾지 못한 경우
@@ -140,6 +197,17 @@ async function loadWeatherData(): Promise<boolean> {
         
         // 샘플 데이터 생성
         await createSampleWeatherData();
+        
+        // 샘플 데이터 생성 후 포인트별 데이터 개수 출력
+        const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
+          const count = await Weather.count({ where: { point } });
+          return { point, count };
+        }));
+        
+        stats.forEach(({ point, count }) => {
+          logger.info(`📊 샘플 데이터 생성 후 포인트 ${point}의 데이터 개수: ${count}`);
+        });
+        
         return true;
       }
     }
