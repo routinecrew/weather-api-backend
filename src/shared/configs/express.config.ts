@@ -45,9 +45,4 @@ app.use((req: Request, res: Response, _next: NextFunction) => { // 'next' → '_
 app.use(errorConverter);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 9092;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-
 export default app;

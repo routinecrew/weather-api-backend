@@ -31,7 +31,7 @@ const showMemoryUsage = () => {
 // ===== Application Bootstrap =====
 const bootstrap = async () => {
   const app = (await import('./shared/configs/express.config')).default;
-  const port = Number(process.env.PORT || 3000);
+  const port = Number(process.env.PORT || 9092);
 
   const seq = await connectPostgres();
 

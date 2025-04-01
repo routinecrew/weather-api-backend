@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { mqlogger } from './logger.config';
-import { getEnvVariable, getEnvNumber } from '../utils/env';
+import { getEnvVariable, getEnvNumber } from '../utils';
 
 type CacheKey = string;
 type CacheTTL = number;
