@@ -1,27 +1,35 @@
-import { NextFunction, Request, Response, Router } from 'express';
+import { Router } from 'express';
 import { apiKeyRouter } from './v1/apikey.route';
 import { weatherRouter } from './v1/weather.route';
 import { validateApiKey } from '../../shared/middlewares/apikey.middleware';
 
 const { APP_NAME = 'weather-service' } = process.env;
 const router = Router();
-const apikeyExcludedPaths = [
-  { method: 'POST', path: `/api/${APP_NAME}/apikeys/init` },
+const API_VERSION = 'v1';
+
+// API 키 검증에서 제외할 경로 (정확한 전체 경로 지정)
+const excludedPaths = [
+  { 
+    method: 'POST', 
+    path: `/api/${APP_NAME}/${API_VERSION}/apikeys/init` 
+  }
 ];
 
-const unless =
-  (paths: { method: string; path: string }[], middleware: (req: Request, res: Response, next: NextFunction) => any) =>
-  (req: Request, _res: Response, next: NextFunction) => { // 'res' → '_res'
-    const fullPath = req.originalUrl.split('?')[0];
-    for (const e of paths) {
-      if (req.method.toUpperCase() === e.method && fullPath === e.path) {
-        return next();
-      }
-    }
-    return middleware(req, _res, next);
-  };
+// 미들웨어 제외 로직
+const conditionalApiKeyCheck = (req: any, res: any, next: any) => {
+  const isExcluded = excludedPaths.some(
+    e => req.method === e.method && req.originalUrl.split('?')[0] === e.path
+  );
+  isExcluded ? next() : validateApiKey(req, res, next);
+};
 
-router.use(`/api/${APP_NAME}/apikeys`, unless(apikeyExcludedPaths, validateApiKey), apiKeyRouter);
-router.use(`/api/${APP_NAME}/weather`, weatherRouter);
+// V1 라우트 설정
+router.use(
+  `/api/${APP_NAME}/${API_VERSION}`,
+  conditionalApiKeyCheck, // 조건부 미들웨어 적용
+  Router()
+    .use('/apikeys', apiKeyRouter)
+    .use('/weather', weatherRouter)
+);
 
 export default router;
