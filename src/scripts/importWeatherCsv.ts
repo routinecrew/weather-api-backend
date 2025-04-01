@@ -13,42 +13,46 @@ import { Sequelize } from 'sequelize-typescript';
  * CSV 파일을 여러 경로에서 찾는 함수
  */
 function findCsvFile(filename: string): string {
-  // 가능한 경로들을 순서대로 확인
-  const possiblePaths = [
-    join(path, 'dist', filename),
-    join(path, filename),         // root 디렉토리
-    join(path, 'src', filename),  // src 디렉토리
-    join('/', 'app', 'dist', filename),  // 도커 컨테이너 내 dist 디렉토리
-    join('/', 'app', filename),   // 도커 컨테이너 내 root 디렉토리
-  ];
+  const isDocker = process.env.DOCKER_ENV === 'true' || fs.existsSync('/.dockerenv');
+  logger.info(`실행 환경: ${isDocker ? 'Docker' : '호스트'}`);
 
+  const possiblePaths = isDocker
+    ? [
+        `/app/dist/${filename}`,
+        `/app/${filename}`,
+        `/app/src/${filename}`,
+      ]
+    : [
+        join(path, 'dist', filename),
+        join(path, filename),
+        join(path, 'src', filename),
+        '/home/ubuntu/weather-api-backend/src/IPB_250104_250305.csv',
+      ];
+
+  logger.info('CSV 파일 탐색 시작...');
   for (const filepath of possiblePaths) {
+    logger.info(`경로 확인: ${filepath} (존재: ${fs.existsSync(filepath)})`);
     if (fs.existsSync(filepath)) {
       logger.info(`CSV 파일을 찾았습니다: ${filepath}`);
       return filepath;
     }
   }
-  
-  // 파일을 찾지 못한 경우 빈 문자열 반환
-  logger.warn(`CSV 파일을 찾지 못했습니다.`);
+
+  logger.error(`CSV 파일을 찾을 수 없습니다: ${filename}. 탐색된 경로: ${possiblePaths.join(', ')}`);
   throw new Error(`CSV 파일을 찾을 수 없습니다: ${filename}`);
 }
 
 /**
  * 날짜 문자열을 파싱하는 강화된 함수
- * 다양한 형식과 특수 공백 문자를 처리
  */
 function parseDate(dateStr: string): Date | null {
-  // 특수 공백 문자를 포함한 모든 종류의 공백 제거 및 표준 공백으로 변환
   const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
   
-  // 기본 Date 파싱 시도
   const date = new Date(cleanDateStr);
   if (!isNaN(date.getTime())) {
     return date;
   }
   
-  // 사용자 정의 형식 시도 (예: YYYY-MM-DDㅤHH:MM:SS 형식)
   const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
   const match = regex.exec(dateStr);
   if (match) {
@@ -74,18 +78,15 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
   logger.info(`🔄 Starting CSV import from: ${csvFilePath}`);
 
-  // CSV 파일 읽기
   const fileContent = fs.readFileSync(csvFilePath, 'utf8');
 
-  // CSV 파싱
   const parseResult = Papa.parse(fileContent, {
     header: true,
     skipEmptyLines: true,
-    dynamicTyping: true, // 자동으로 숫자 타입 변환
-    transformHeader: (header: string) => header.trim(), // 헤더 공백 제거
-    // 큰 파일을 고려한 추가 옵션
-    delimiter: ",", // 명시적으로 구분자 지정
-    delimitersToGuess: [',', '\t', '|', ';'], // 다양한 구분자 추측
+    dynamicTyping: true,
+    transformHeader: (header: string) => header.trim(),
+    delimiter: ",",
+    delimitersToGuess: [',', '\t', '|', ';'],
   });
 
   if (parseResult.errors && parseResult.errors.length > 0) {
@@ -96,13 +97,11 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
   const csvData = parseResult.data as any[];
   logger.info(`📊 Total rows in CSV: ${csvData.length}`);
 
-  // 배치 처리를 위한 변수
   const totalBatches = Math.ceil(csvData.length / batchSize);
   let processedRows = 0;
   let successCount = 0;
   let errorCount = 0;
 
-  // 배치 처리
   for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
     const start = batchIndex * batchSize;
     const end = Math.min(start + batchSize, csvData.length);
@@ -110,11 +109,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
     const weatherBatch: WeatherCreationAttributes[] = [];
 
-    // 1번 센서 그룹 데이터만 추출하여 변환
     for (const row of batch) {
       try {
         const timeStr = row.time;
-        // 강화된 날짜 파싱 함수 사용
         const timeDate = parseDate(timeStr);
         
         if (!timeDate) {
@@ -123,10 +120,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           continue;
         }
 
-        // 1번 센서 그룹 데이터만 추출
         const weatherData: WeatherCreationAttributes = {
           time: timeDate,
-          point: 1, // 1번 센서 그룹
+          point: 1,
           airTemperature: row.Air_Temperature1,
           airHumidity: row.Air_Humidity1,
           airPressure: row.Air_Pressure1,
@@ -137,7 +133,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           pasteTypeTemperature: row.Paste_type_temperature1,
         };
 
-        // 필수 필드 검증
         const requiredFields = [
           'airTemperature',
           'airHumidity',
@@ -166,7 +161,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       }
     }
 
-    // 배치 저장
     try {
       if (weatherBatch.length > 0) {
         await Weather.bulkCreate(weatherBatch);
@@ -186,21 +180,16 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
 async function main() {
   try {
-    // 환경 변수 로드
     configDotenv();
 
-    // CSV 파일 경로 찾기
     const csvFilename = 'IPB_250104_250305.csv';
     const csvFilePath = findCsvFile(csvFilename);
 
-    // 데이터베이스 연결
     logger.info('🔌 Connecting to database...');
     const seq = await connectPostgres();
 
-    // CSV 파일 가져오기
     await importWeatherDataFromCsv(csvFilePath);
 
-    // 데이터베이스 연결 종료
     await (seq as Sequelize).close();
     logger.info('🔌 Database connection closed');
   } catch (error) {
@@ -209,7 +198,6 @@ async function main() {
   }
 }
 
-// 스크립트 실행
 main()
   .then(() => {
     logger.info('✨ Script completed successfully');
