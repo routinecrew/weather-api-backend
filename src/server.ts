@@ -2,15 +2,11 @@ import { logger } from './shared/configs/logger.config';
 import { Weather } from './service-init/models/main/weather';
 
 import { configDotenv } from './shared/configs/dotenv.config';
-import { connectPostgres } from './shared/configs/postgres.config';
-import { Sequelize } from 'sequelize-typescript';
+import { connectPostgres, closePostgresConnection } from './shared/configs/postgres.config';
 import fs from 'fs';
 
 // Docker 환경 표시 설정
 process.env.DOCKER_ENV = fs.existsSync('/.dockerenv') ? 'true' : 'false';
-
-// 스크립트 함수 가져오기
-import { findCsvFile, importWeatherDataFromCsv } from './scripts/csvImportHelpers';
 
 // ===== Memory Usage Utility =====
 const showMemoryUsage = () => {
@@ -36,84 +32,55 @@ const showMemoryUsage = () => {
 };
 
 // ===== 샘플 데이터 생성 함수 =====
-async function createSampleWeatherData() {
-  logger.info('🔄 CSV 파일을 찾을 수 없어 샘플 데이터를 생성합니다...');
+async function createSampleWeatherData(count = 100): Promise<number> {
+  logger.info(`🔄 샘플 데이터 ${count}개를 생성합니다...`);
   
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   
-  // 24시간 분량의 샘플 데이터 생성 (1시간 간격)
+  // 24시간 분량의 샘플 데이터 생성 (count개)
   const weatherBatch = [];
+  const hoursToGenerate = Math.min(count / 5, 24); // 최대 24시간, 각 시간당 5개 포인트
   
-  // 포인트 1의 샘플 데이터 (24개)
-  for (let i = 0; i < 24; i++) {
+  // 각 시간마다 5개 포인트에 대한 데이터 생성
+  for (let i = 0; i < hoursToGenerate; i++) {
     const time = new Date(yesterday);
     time.setHours(i);
     
     // 현실적인 값의 범위에서 약간의 랜덤성 추가
     const baseTemp = 22 + Math.sin(i * Math.PI / 12) * 5; // 온도는 하루 주기로 변화
     
-    weatherBatch.push({
-      time,
-      point: 1,
-      airTemperature: baseTemp + (Math.random() * 2 - 1), // 기본 온도 ±1도
-      airHumidity: 60 + Math.random() * 20, // 습도 60~80%
-      airPressure: 1013 + Math.random() * 5, // 기압 1013~1018 hPa
-      soilTemperature: baseTemp - 3 + Math.random(), // 지온은 기온보다 약간 낮음
-      soilHumidity: 40 + Math.random() * 15, // 지습 40~55%
-      soilEC: 0.8 + Math.random() * 0.8, // 전도도 0.8~1.6
-      pyranometer: i >= 6 && i <= 18 ? 300 + Math.random() * 600 : Math.random() * 50, // 일조량 (낮에만 높음)
-      pasteTypeTemperature: baseTemp - 1 + Math.random() * 2, // 페이스트 온도
-    });
-  }
-  
-  // 포인트 2, 3, 4의 샘플 데이터 (각 포인트별 12개씩)
-  for (let point = 2; point <= 4; point++) {
-    for (let i = 0; i < 12; i++) {
-      const time = new Date(yesterday);
-      time.setHours(i * 2); // 2시간 간격
-      
-      const baseTemp = 20 + point + Math.sin(i * Math.PI / 6) * 4; // 포인트에 따라 약간 다른 온도
-      
-      weatherBatch.push({
+    // 포인트 1~5 데이터 생성
+    for (let point = 1; point <= 5; point++) {
+      const weatherData: any = {
         time,
         point,
-        airTemperature: baseTemp + (Math.random() * 2 - 1),
-        airHumidity: 55 + Math.random() * 30,
-        airPressure: 1010 + point + Math.random() * 5,
-        soilTemperature: baseTemp - 2 + Math.random(),
-        soilHumidity: 35 + point + Math.random() * 15,
-        soilEC: 0.6 + (point / 10) + Math.random() * 0.8,
-        pyranometer: i >= 3 && i <= 9 ? 250 + (point * 30) + Math.random() * 500 : Math.random() * 70
-      });
-    }
-  }
-  
-  // 포인트 5의 샘플 데이터 (6개)
-  for (let i = 0; i < 6; i++) {
-    const time = new Date(yesterday);
-    time.setHours(i * 4); // 4시간 간격
-    
-    const baseTemp = 21 + Math.sin(i * Math.PI / 3) * 4;
-    
-    weatherBatch.push({
-      time,
-      point: 5,
-      airTemperature: baseTemp + (Math.random() * 2 - 1),
-      airHumidity: 55 + Math.random() * 25,
-      airPressure: 1012 + Math.random() * 6,
-      soilTemperature: baseTemp - 2 + Math.random(),
-      soilHumidity: 38 + Math.random() * 18,
-      soilEC: 0.7 + Math.random() * 0.9,
-      pyranometer: i >= 2 && i <= 4 ? 280 + Math.random() * 550 : Math.random() * 60,
+        airTemperature: baseTemp + (Math.random() * 2 - 1), // 기본 온도 ±1도
+        airHumidity: 60 + Math.random() * 20, // 습도 60~80%
+        airPressure: 1013 + Math.random() * 5, // 기압 1013~1018 hPa
+        soilTemperature: baseTemp - 3 + Math.random(), // 지온은 기온보다 약간 낮음
+        soilHumidity: 40 + Math.random() * 15, // 지습 40~55%
+        soilEC: 0.8 + Math.random() * 0.8, // 전도도 0.8~1.6
+        pyranometer: i >= 6 && i <= 18 ? 300 + Math.random() * 600 : Math.random() * 50, // 일조량 (낮에만 높음)
+      };
+      
+      // 포인트 1에만 있는 데이터
+      if (point === 1) {
+        weatherData.pasteTypeTemperature = baseTemp - 1 + Math.random() * 2; // 페이스트 온도
+      }
+      
       // 포인트 5에만 있는 데이터
-      windSpeed: 1 + Math.random() * 4, // 풍속 1~5 m/s
-      windDirection: Math.floor(Math.random() * 360), // 풍향 0~359도
-      solarRadiation: i >= 2 && i <= 4 ? 400 + Math.random() * 300 : Math.random() * 50, // 일사량
-      rainfall: Math.random() < 0.3 ? Math.random() * 2 : 0, // 30% 확률로 비 (0~2mm)
-      co2: 400 + Math.random() * 50, // 이산화탄소 농도 400~450ppm
-    });
+      if (point === 5) {
+        weatherData.windSpeed = 1 + Math.random() * 4; // 풍속 1~5 m/s
+        weatherData.windDirection = Math.floor(Math.random() * 360); // 풍향 0~359도
+        weatherData.solarRadiation = i >= 6 && i <= 18 ? 400 + Math.random() * 300 : Math.random() * 50; // 일사량
+        weatherData.rainfall = Math.random() < 0.3 ? Math.random() * 2 : 0; // 30% 확률로 비 (0~2mm)
+        weatherData.co2 = 400 + Math.random() * 50; // 이산화탄소 농도 400~450ppm
+      }
+      
+      weatherBatch.push(weatherData);
+    }
   }
   
   try {
@@ -128,10 +95,10 @@ async function createSampleWeatherData() {
   }
 }
 
-// ===== CSV 데이터 로드 함수 =====
-async function loadWeatherData(): Promise<boolean> {
+// ===== 데이터 수 확인 함수 =====
+async function checkWeatherData(): Promise<void> {
   try {
-    // 데이터가 이미 있는지 확인
+    // 데이터 개수 확인
     const existingDataCount = await Weather.count();
     logger.info(`📊 DB에 ${existingDataCount}개의 날씨 데이터가 있습니다.`);
 
@@ -145,80 +112,23 @@ async function loadWeatherData(): Promise<boolean> {
       stats.forEach(({ point, count }) => {
         logger.info(`📊 포인트 ${point}의 데이터 개수: ${count}`);
       });
-    }
-
-    // 데이터가 없으면 CSV 파일에서 가져오기
-    if (existingDataCount === 0) {
-      logger.info('💾 날씨 데이터가 없습니다. 데이터를 로드합니다...');
       
-      // 먼저 Docker 환경의 고정 경로 시도
-      if (process.env.DOCKER_ENV === 'true') {
-        const dockerPath = '/app/dist/IPB_250104_250305.csv';
-        if (fs.existsSync(dockerPath)) {
-          logger.info(`Docker 컨테이너 내 CSV 파일 발견: ${dockerPath}`);
-          await importWeatherDataFromCsv(dockerPath);
-          logger.info('✅ Docker 환경에서 CSV 데이터 가져오기가 완료되었습니다.');
-          
-          // CSV 가져오기 후 포인트별 데이터 개수 출력
-          const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
-            const count = await Weather.count({ where: { point } });
-            return { point, count };
-          }));
-          
-          stats.forEach(({ point, count }) => {
-            logger.info(`📊 CSV 가져오기 후 포인트 ${point}의 데이터 개수: ${count}`);
-          });
-          
-          return true;
-        }
-      }
-      
-      // 그 다음 findCsvFile 함수로 파일 찾기 시도
-      try {
-        const csvFilename = 'IPB_250104_250305.csv';
-        const csvFilePath = findCsvFile(csvFilename);
-        await importWeatherDataFromCsv(csvFilePath);
-        logger.info('✅ CSV 데이터 가져오기가 완료되었습니다.');
-        
-        // CSV 가져오기 후 포인트별 데이터 개수 출력
-        const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
-          const count = await Weather.count({ where: { point } });
-          return { point, count };
-        }));
-        
-        stats.forEach(({ point, count }) => {
-          logger.info(`📊 CSV 가져오기 후 포인트 ${point}의 데이터 개수: ${count}`);
-        });
-        
-        return true;
-      } catch (error: any) { // 'any' 타입으로 명시적 지정
-        // CSV 파일을 찾지 못한 경우
-        logger.warn(`⚠️ CSV 파일을 찾지 못했습니다: ${error.message}`);
-        
-        // 샘플 데이터 생성
-        await createSampleWeatherData();
-        
-        // 샘플 데이터 생성 후 포인트별 데이터 개수 출력
-        const stats = await Promise.all([1, 2, 3, 4, 5].map(async (point) => {
-          const count = await Weather.count({ where: { point } });
-          return { point, count };
-        }));
-        
-        stats.forEach(({ point, count }) => {
-          logger.info(`📊 샘플 데이터 생성 후 포인트 ${point}의 데이터 개수: ${count}`);
-        });
-        
-        return true;
-      }
+      return;
     }
     
-    return true;
+    // 데이터가 없으면 샘플 데이터 생성
+    logger.info('💾 날씨 데이터가 없습니다. 샘플 데이터를 생성합니다...');
+    await createSampleWeatherData(100); // 적은 수의 샘플 데이터만 생성
+    
+    logger.info('✅ 기본 데이터 확인 완료. 필요 시 CSV 가져오기 스크립트를 별도로 실행하세요.');
+    logger.info('   명령어: npx ts-node src/scripts/importWeatherCsv.ts');
+    
   } catch (error) {
-    logger.error('❌ 데이터 로드 중 오류 발생:', error);
-    return false;
+    logger.error('❌ 데이터 확인 중 오류 발생:', error);
   }
 }
 
+// ===== Application Bootstrap =====
 // ===== Application Bootstrap =====
 const bootstrap = async () => {
   // 환경 변수 로드
@@ -234,11 +144,11 @@ const bootstrap = async () => {
 
     // 데이터베이스 연결
     logger.info('🔌 데이터베이스에 연결 중...');
-    const seq = await connectPostgres();
+    await connectPostgres(); // seq 변수 제거
     logger.info('✅ 데이터베이스 연결 성공!');
     
-    // 데이터 로드 (CSV 또는 샘플 데이터)
-    await loadWeatherData();
+    // 데이터 확인 (CSV 가져오기는 별도 스크립트로 분리)
+    await checkWeatherData();
 
     // 서버 시작
     const server = app.listen(port, () => {
@@ -246,19 +156,49 @@ const bootstrap = async () => {
       logger.info(`🚀 서버 메모리 사용량: ${showMemoryUsage()}`);
     });
 
+    // 메모리 사용량 모니터링 (30초마다)
+    const memoryMonitorInterval = setInterval(() => {
+      const memoryUsage = showMemoryUsage();
+      logger.debug(`🔍 메모리 사용량: ${memoryUsage}`);
+    }, 30000);
+
     // Graceful Shutdown
     const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
       logger.info(`👻 서버를 종료합니다... 신호: ${signal}`);
-      await (seq as Sequelize).close();
-      logger.info('데이터베이스 연결 종료');
+      
+      // 주기적인 메모리 모니터링 중지
+      clearInterval(memoryMonitorInterval);
+      
+      // 데이터베이스 연결 종료
+      await closePostgresConnection();
+      
+      // HTTP 서버 종료
       server.close(() => {
-        logger.info('HTTP 서버 종료');
+        logger.info('HTTP 서버 종료됨');
         process.exit(0);
       });
+      
+      // 10초 내에 정상 종료되지 않으면 강제 종료
+      setTimeout(() => {
+        logger.error('서버가 10초 내에 정상적으로 종료되지 않아 강제 종료합니다.');
+        process.exit(1);
+      }, 10000);
     };
 
     process.on('SIGINT', shutdown.bind(null, 'SIGINT'));
     process.on('SIGTERM', shutdown.bind(null, 'SIGTERM'));
+    
+    // 예외 처리
+    process.on('uncaughtException', (err) => {
+      logger.error('처리되지 않은 예외 발생:', err);
+      shutdown('SIGTERM');
+    });
+    
+    process.on('unhandledRejection', (reason) => {
+      logger.error('처리되지 않은 Promise 거부:', reason);
+      shutdown('SIGTERM');
+    });
+    
   } catch (error) {
     logger.error('❌ 서버 부팅 중 오류 발생:', error);
     process.exit(1);
