@@ -35,7 +35,7 @@ EOF
 echo "📝 .env 파일을 생성합니다..."
 cat > .env << EOF
 NODE_ENV=production
-PORT=9091
+PORT=9092
 POSTGRES_HOST=weather-postgres
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
@@ -93,7 +93,7 @@ RUN chmod +x /wait-for-it.sh
 
 # 환경 변수 설정
 ENV NODE_ENV=production
-ENV PORT=9091
+ENV PORT=9092
 ENV POSTGRES_HOST=weather-postgres
 ENV POSTGRES_PORT=5432
 ENV POSTGRES_USER=postgres
@@ -101,7 +101,7 @@ ENV POSTGRES_PASSWORD=postgres123
 ENV POSTGRES_DATABASE=weather_db
 
 # 포트 노출
-EXPOSE 9091
+EXPOSE 9092
 
 # 앱 실행 (데이터베이스 연결 대기 후)
 CMD ["/wait-for-it.sh", "weather-postgres:5432", "--", "node", "dist/server.js"]
@@ -147,7 +147,7 @@ services:
       - .env
     environment:
       NODE_ENV: \${NODE_ENV:-production}
-      PORT: \${PORT:-9091}
+      PORT: \${PORT:-9092}
       POSTGRES_HOST: weather-postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: \${POSTGRES_USER:-postgres}
@@ -158,7 +158,7 @@ services:
     depends_on:
       - weather-postgres
     ports:
-      - "\${PORT:-9091}:9091"
+      - "\${PORT:-9092}:9092"
     networks:
       - weather-network
     restart: unless-stopped

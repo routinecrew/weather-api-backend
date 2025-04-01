@@ -42,7 +42,7 @@ RUN chmod +x /wait-for-it.sh
 
 # 환경 변수 설정
 ENV NODE_ENV=production
-ENV PORT=9091
+ENV PORT=9092
 
 # 포트 노출 (환경 변수에서 가져오도록 수정)
 EXPOSE ${PORT}
