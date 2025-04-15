@@ -44,46 +44,48 @@ function findCsvFile(filename: string): string {
 /**
  * 날짜 문자열을 파싱하는 강화된 함수
  */
+/**
+ * 날짜 문자열을 파싱하는 강화된 함수
+ */
 export function parseDate(dateStr: string | undefined | null): Date | null {
   if (!dateStr) {
     logger.warn(`날짜 문자열이 제공되지 않았습니다: ${dateStr}`);
     return null;
   }
 
-  // "2025-01-0816:10:43" 형식 처리
-  const customFormatRegex = /^(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})$/;
-  const match = customFormatRegex.exec(dateStr);
-  if (match) {
-    const [, datePart, timePart] = match;
-    const formattedStr = `${datePart}T${timePart}`; // "2025-01-08T16:10:43"
-    const parsedDate = new Date(formattedStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
+  try {
+    // 모든 공백 문자를 표준화
+    let cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+    
+    // "2025-01-0411:08:42" 형식 처리 - 날짜와 시간 사이에 공백 추가
+    cleanDateStr = cleanDateStr.replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, '$1 $2');
+    
+    // 표준 Date 객체로 파싱 시도
+    const date = new Date(cleanDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
     }
-  }
-
-  // 기존 표준 형식 처리 (공백 포함)
-  const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
-  const date = new Date(cleanDateStr);
-  if (!isNaN(date.getTime())) {
-    return date;
-  }
-
-  // "YYYY-MM-DD HH:MM:SS" 형식 처리
-  const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
-  const fallbackMatch = regex.exec(dateStr);
-  if (fallbackMatch) {
-    const [, datePart, timePart] = fallbackMatch;
-    const formattedStr = `${datePart}T${timePart}`;
-    const parsedDate = new Date(formattedStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
+    
+    // 대안 포맷 처리 - "YYYY-MM-DD HH:MM:SS" 형식
+    const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
+    const match = regex.exec(dateStr);
+    if (match) {
+      const [, datePart, timePart] = match;
+      const formattedStr = `${datePart}T${timePart}`;
+      const parsedDate = new Date(formattedStr);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
     }
-  }
 
-  logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
-  return null;
+    logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
+    return null;
+  } catch (error) {
+    logger.error(`날짜 파싱 중 오류 발생: ${dateStr}`, error);
+    return null;
+  }
 }
+
 
 /**
  * CSV 파일 내용을 스트림으로 읽고 작은 배치로 처리하는 함수

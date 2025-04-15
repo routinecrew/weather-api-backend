@@ -2,6 +2,7 @@ import { join } from 'path';
 import { path } from 'app-root-path';
 import fs from 'fs';
 import Papa from 'papaparse';
+import { Op } from 'sequelize';
 import { Weather, WeatherCreationAttributes } from '../service-init/models/main/weather';
 import { logger } from '../shared/configs/logger.config';
 
@@ -51,43 +52,41 @@ export function parseDate(dateStr: string | undefined | null): Date | null {
     return null;
   }
 
-  // "2025-01-0816:10:43" 형식 처리
-  const customFormatRegex = /^(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})$/;
-  const match = customFormatRegex.exec(dateStr);
-  if (match) {
-    const [, datePart, timePart] = match;
-    const formattedStr = `${datePart}T${timePart}`; // "2025-01-08T16:10:43"
-    const parsedDate = new Date(formattedStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
+  try {
+    // 모든 공백 문자를 표준화
+    let cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+    
+    // "2025-01-0411:08:42" 형식 처리 - 날짜와 시간 사이에 공백 추가
+    cleanDateStr = cleanDateStr.replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, '$1 $2');
+    
+    // 표준 Date 객체로 파싱 시도
+    const date = new Date(cleanDateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
     }
-  }
-
-  // 기존 표준 형식 처리 (공백 포함)
-  const cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
-  const date = new Date(cleanDateStr);
-  if (!isNaN(date.getTime())) {
-    return date;
-  }
-
-  // "YYYY-MM-DD HH:MM:SS" 형식 처리
-  const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
-  const fallbackMatch = regex.exec(dateStr);
-  if (fallbackMatch) {
-    const [, datePart, timePart] = fallbackMatch;
-    const formattedStr = `${datePart}T${timePart}`;
-    const parsedDate = new Date(formattedStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
+    
+    // 대안 포맷 처리 - "YYYY-MM-DD HH:MM:SS" 형식
+    const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
+    const match = regex.exec(dateStr);
+    if (match) {
+      const [, datePart, timePart] = match;
+      const formattedStr = `${datePart}T${timePart}`;
+      const parsedDate = new Date(formattedStr);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
     }
-  }
 
-  logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
-  return null;
+    logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
+    return null;
+  } catch (error) {
+    logger.error(`날짜 파싱 중 오류 발생: ${dateStr}`, error);
+    return null;
+  }
 }
 
 /**
- * CSV 파일에서 1번 센서 그룹 데이터를 읽어서 데이터베이스에 저장하는 함수
+ * CSV 파일에서 센서 그룹 데이터를 읽어서 데이터베이스에 저장하는 함수
  */
 export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): Promise<void> {
   const csvFileExists = fs.existsSync(csvFilePath);
@@ -95,12 +94,16 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
     throw new Error(`CSV 파일이 존재하지 않습니다: ${csvFilePath}`);
   }
 
-  logger.info(`🔄 Starting CSV import from: ${csvFilePath}`);
+  logger.info(`🔄 CSV 가져오기 시작: ${csvFilePath}`);
 
   try {
     const fileContent = fs.readFileSync(csvFilePath, 'utf8');
     logger.info(`CSV 파일 크기: ${fileContent.length} 바이트`);
     logger.info(`CSV 파일 처음 100자: ${fileContent.substring(0, 100)}`);
+
+    // 기존의 데이터 수 확인
+    const existingCount = await Weather.count();
+    logger.info(`현재 DB에 ${existingCount}개의 날씨 데이터가 있습니다.`);
 
     const parseResult = Papa.parse(fileContent, {
       header: true,
@@ -127,10 +130,47 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
     logger.info(`CSV 헤더: ${JSON.stringify(parseResult.meta.fields)}`);
     logger.info(`첫 번째 행 데이터: ${JSON.stringify(csvData[0])}`);
 
+    // 데이터 중복 방지를 위한 Set 생성
+    const processedTimePointPairs = new Set<string>();
+
+    // 기존 데이터 확인 (첫 번째 및 마지막 데이터 시간 범위)
+    if (csvData.length > 0 && csvData[0].datetime && csvData[csvData.length - 1].datetime) {
+      try {
+        const firstDate = parseDate(csvData[0].datetime);
+        const lastDate = parseDate(csvData[csvData.length - 1].datetime);
+        
+        if (firstDate && lastDate) {
+          logger.info(`CSV 데이터 날짜 범위: ${firstDate.toISOString()} ~ ${lastDate.toISOString()}`);
+          
+          // 이미 DB에 있는 날짜-포인트 조합 조회
+          const existingData = await Weather.findAll({
+            where: {
+              time: {
+                [Op.between]: [firstDate, lastDate]
+              }
+            },
+            attributes: ['time', 'point']
+          });
+          
+          logger.info(`날짜 범위 내 기존 DB 데이터: ${existingData.length}개`);
+          
+          // 중복 확인용 Set에 추가
+          existingData.forEach(record => {
+            processedTimePointPairs.add(`${record.time.toISOString()}_${record.point}`);
+          });
+          
+          logger.info(`중복 방지를 위해 ${processedTimePointPairs.size}개의 기존 시간-포인트 조합 캐싱 완료`);
+        }
+      } catch (error) {
+        logger.warn('기존 데이터 조회 중 오류 발생, 중복 방지 기능이 제한될 수 있습니다:', error);
+      }
+    }
+
     const totalBatches = Math.ceil(csvData.length / batchSize);
     let processedRows = 0;
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
       const start = batchIndex * batchSize;
@@ -141,7 +181,7 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
 
       for (const row of batch) {
         try {
-          const timeStr = row.datetime;
+          const timeStr = row.datetime || row.time; // datetime 또는 time 필드 확인
           const timeDate = parseDate(timeStr);
           
           if (!timeDate) {
@@ -166,6 +206,16 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
               continue;
             }
 
+            // 중복 체크
+            const timePointKey = `${timeDate.toISOString()}_${point}`;
+            if (processedTimePointPairs.has(timePointKey)) {
+              skippedCount++;
+              continue; // 이미 처리된 시간-포인트 조합은 건너뜀
+            }
+            
+            // 중복 방지를 위해 Set에 추가
+            processedTimePointPairs.add(timePointKey);
+
             const weatherData: WeatherCreationAttributes = {
               time: timeDate,
               point: point,
@@ -185,11 +235,12 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
 
             // 포인트 5에만 있는 데이터
             if (point === 5) {
-              if (row[`Wind_Speed${point}`] !== undefined) weatherData.windSpeed = row[`Wind_Speed${point}`];
-              if (row[`Wind_Direction${point}`] !== undefined) weatherData.windDirection = row[`Wind_Direction${point}`];
-              if (row[`Solar_Radiation${point}`] !== undefined) weatherData.solarRadiation = row[`Solar_Radiation${point}`];
-              if (row[`Rainfall${point}`] !== undefined) weatherData.rainfall = row[`Rainfall${point}`];
-              if (row[`CO2${point}`] !== undefined) weatherData.co2 = row[`CO2${point}`];
+              // CSV 컬럼명 매칭을 다양하게 시도
+              weatherData.windSpeed = row[`Wind_speed${point}`] || row[`Wind_Speed${point}`];
+              weatherData.windDirection = row[`Wind_direction${point}`] || row[`Wind_Direction${point}`];
+              weatherData.solarRadiation = row[`Solar_radiation${point}`] || row[`Solar_Radiation${point}`];
+              weatherData.rainfall = row[`Rainfall${point}`];
+              weatherData.co2 = row[`CO2${point}`] || row[`${point}_CO2`];
             }
 
             // 필수 필드 검증
@@ -225,7 +276,10 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
       try {
         if (weatherBatch.length > 0) {
           logger.info(`배치 ${batchIndex + 1}/${totalBatches}에 ${weatherBatch.length}개 데이터 저장 시도`);
-          await Weather.bulkCreate(weatherBatch);
+          await Weather.bulkCreate(weatherBatch, {
+            // 동일한 time과 point 조합이 있으면 무시
+            ignoreDuplicates: true
+          });
           successCount += weatherBatch.length;
           logger.info(`배치 ${batchIndex + 1}/${totalBatches} 저장 성공!`);
         } else {
@@ -240,7 +294,11 @@ export async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 
       }
     }
 
-    logger.info(`🏁 CSV 가져오기 완료. 성공: ${successCount}, 오류: ${errorCount}`);
+    // 데이터 처리 결과 요약
+    const afterCount = await Weather.count();
+    logger.info(`🏁 CSV 가져오기 완료.`);
+    logger.info(`총 처리: ${processedRows}행, 성공: ${successCount}, 오류: ${errorCount}, 중복 건너뜀: ${skippedCount}`);
+    logger.info(`DB 데이터 수: ${existingCount} → ${afterCount} (${afterCount - existingCount} 증가)`);
   } catch (error) {
     logger.error(`CSV 파일 처리 중 예외 발생: ${error}`);
     throw error;
