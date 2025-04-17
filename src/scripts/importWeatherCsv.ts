@@ -85,7 +85,7 @@ function parseDate(dateStr: string): Date | null {
     // 유효한 날짜인지 확인
     if (date && !isNaN(date.getTime())) {
       // 현재 시간과 크게 차이나는지 확인 (2020년 이전이거나 2030년 이후라면 의심)
-      const now = new Date();
+      const currentDate = new Date();
       if (date.getFullYear() < 2020 || date.getFullYear() > 2030) {
         logger.warn(`의심스러운 연도: ${date.getFullYear()}, 원본 문자열: "${dateStr}"`);
       }
@@ -168,7 +168,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     // 1번 센서 그룹 데이터만 추출하여 변환
     for (const row of batch) {
       try {
-        const timeStr = row[timeColumnName];
+        // 시간 필드가 존재하는지 확인하고 문자열로 변환
+        const timeStr = row[timeColumnName] ? String(row[timeColumnName]) : '';
         if (!timeStr) {
           logger.warn(`시간 열(${timeColumnName})이 비어 있습니다: ${JSON.stringify(row)}`);
           errorCount++;
@@ -251,7 +252,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
   logger.info(`🏁 CSV import completed. Success: ${successCount}, Errors: ${errorCount}`);
 }
 
-async function main() {
+// 스크립트 실행 함수
+async function runImport() {
   try {
     // 환경 변수 로드
     configDotenv();
@@ -270,8 +272,22 @@ async function main() {
     // 데이터베이스 연결 종료
     await (seq as Sequelize).close();
     logger.info('🔌 Database connection closed');
+    
+    logger.info('✨ Script completed successfully');
+    process.exit(0);
   } catch (error) {
     logger.error('❌ Script execution failed:', error);
     process.exit(1);
   }
 }
+
+// 스크립트가 직접 실행된 경우에만 실행
+if (require.main === module) {
+  runImport().catch((error) => {
+    logger.error('❌ Unhandled error:', error);
+    process.exit(1);
+  });
+}
+
+// export 추가 - 다른 모듈에서 가져다 쓸 수 있도록
+export { runImport, importWeatherDataFromCsv, parseDate, findCsvFile };
