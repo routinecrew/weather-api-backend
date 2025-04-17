@@ -68,11 +68,11 @@ function parseDateAndTime(timeStr: string | undefined | null): { date: string, t
   }
 
   try {
-    // 한글 자모음 문자(ㅤ, 코드: 12644)를 일반 공백으로 변환
+    // 한글 자모음 문자(ㅤ, 코드: 3164)를 일반 공백으로 변환
     const cleanTimeStr = timeStr.replace(/\u3164/g, ' ');
     
     // 간단한 정규식으로 날짜와 시간 추출
-    const dateTimeRegex = /(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/;
+    const dateTimeRegex = /(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2}:\d{2})/;
     const match = dateTimeRegex.exec(cleanTimeStr);
     
     if (match) {
@@ -113,7 +113,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       skipEmptyLines: true,
       dynamicTyping: true,
       transformHeader: (header: string) => header.trim(),
-      delimiter: "\t",
+      // 쉼표(,)를 기본 구분자로 설정
+      delimiter: ",",
+      quoteChar: '"',  // 따옴표 처리 명시
       delimitersToGuess: [',', '\t', '|', ';'],
     });
 
