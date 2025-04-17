@@ -1,0 +1,10 @@
+FROM postgres:15.1-alpine
+
+LABEL version="1.0.0" 
+LABEL maintainer="kang san"
+
+WORKDIR /docker-entrypoint-initdb.d/
+
+COPY postgres.d/init.sql ./
+
+RUN chmod 755 ./init.sql

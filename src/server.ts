@@ -143,9 +143,26 @@ const bootstrap = async () => {
     const port = Number(process.env.PORT || 9092);
 
     // 데이터베이스 연결
-    logger.info('🔌 데이터베이스에 연결 중...');
-    await connectPostgres(); // seq 변수 제거
+    await connectPostgres();
     logger.info('✅ 데이터베이스 연결 성공!');
+    
+    // 데이터 확인 - 기존 데이터가 없을 때만 샘플 데이터 생성
+    const existingDataCount = await Weather.count();
+    logger.info(`📊 DB에 ${existingDataCount}개의 날씨 데이터가 있습니다.`);
+    
+    if (existingDataCount === 0 && process.env.AUTO_IMPORT_CSV === 'true') {
+      logger.info('💾 날씨 데이터가 없습니다. CSV 데이터 가져오기를 실행합니다...');
+      // importWeatherCsv 모듈 가져오기 및 실행
+      const { runImport } = await import('./scripts/importWeatherCsv');
+      await runImport().catch(err => {
+        logger.error('CSV 가져오기 실패:', err);
+        logger.info('대신 샘플 데이터를 생성합니다.');
+        return createSampleWeatherData(100);
+      });
+    } else if (existingDataCount === 0) {
+      logger.info('💾 날씨 데이터가 없습니다. 샘플 데이터를 생성합니다...');
+      await createSampleWeatherData(100);
+    }
     
     // 데이터 확인 (CSV 가져오기는 별도 스크립트로 분리)
     await checkWeatherData();
