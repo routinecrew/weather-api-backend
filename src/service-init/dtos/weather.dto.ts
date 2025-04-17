@@ -1,6 +1,6 @@
 import Joi from 'joi';
 
-import { WeatherCreationAttributes } from '../models/main/weather';
+import { WeatherCreationAttributes } from '../models/main/weather.model';
 import commonDto from '../../shared/dtos/common.dto';
 
 const write = {

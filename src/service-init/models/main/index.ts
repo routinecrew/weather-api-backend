@@ -2,7 +2,7 @@ import { ModelCtor, Sequelize } from 'sequelize-typescript';
 
 import { DEFAULT_MAIN_SCHEMA, createSchema } from '../../../shared/configs/schema.config';
 import { ApiKey } from './apikey.model';
-import { Weather } from './weather';
+import { Weather } from './weather.model';
 import { logger } from '../../../shared/configs/logger.config';
 
 export const generateMainModels = async (seq: Sequelize) => {

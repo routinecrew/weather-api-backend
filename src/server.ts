@@ -1,5 +1,5 @@
 import { logger } from './shared/configs/logger.config';
-import { Weather } from './service-init/models/main/weather';
+import { Weather } from './service-init/models/main/weather.model';
 
 import { configDotenv } from './shared/configs/dotenv.config';
 import { connectPostgres, closePostgresConnection } from './shared/configs/postgres.config';

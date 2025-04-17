@@ -3,7 +3,7 @@ import { path } from 'app-root-path';
 import fs from 'fs';
 import Papa from 'papaparse';
 import { Op } from 'sequelize';
-import { Weather, WeatherCreationAttributes } from '../service-init/models/main/weather';
+import { Weather, WeatherCreationAttributes } from '../service-init/models/main/weather.model';
 import { logger } from '../shared/configs/logger.config';
 
 /**

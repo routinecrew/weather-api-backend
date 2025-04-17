@@ -8,7 +8,8 @@ import { seqLogger } from '../../../shared/utils/logger';
 
 export interface WeatherAttributes {
   id: number;
-  time: Date;
+  date: string; // 원본 날짜 문자열 (YYYY-MM-DD)
+  time: string; // 원본 시간 문자열 (HH:MM:SS)
   point: number;
   airTemperature: number;
   airHumidity: number;
@@ -17,17 +18,12 @@ export interface WeatherAttributes {
   soilHumidity: number;
   soilEC: number;
   pyranometer: number;
-
-  // 포인트 1에만 존재하는 데이터
   pasteTypeTemperature?: number;
-
-  // 포인트 5에만 존재하는 데이터
   windSpeed?: number;
   windDirection?: number;
   solarRadiation?: number;
   rainfall?: number;
   co2?: number;
-
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
@@ -36,12 +32,12 @@ export interface WeatherAttributes {
 export type WeatherOmitAttributes = 'id' | 'createdAt' | 'updatedAt' | 'deletedAt';
 export type WeatherCreationAttributes = SQLZ.Optional<WeatherAttributes, WeatherOmitAttributes>;
 
-@SQLZ_TS.Table({ 
-  tableName: 'weather', 
+@SQLZ_TS.Table({
+  tableName: 'weather',
   modelName: 'Weather',
-  schema: 'public', // 명시적으로 스키마 설정
-  paranoid: true,  // soft delete 지원
-  underscored: true, // snake_case 필드명 사용
+  schema: 'public',
+  paranoid: true,
+  underscored: true,
 })
 export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAttributes> {
   @SQLZ_TS.PrimaryKey
@@ -50,8 +46,12 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
   override readonly id!: number;
 
   @SQLZ_TS.AllowNull(false)
-  @SQLZ_TS.Column(SQLZ_TS.DataType.DATE)
-  readonly time!: Date;
+  @SQLZ_TS.Column(SQLZ_TS.DataType.STRING)
+  readonly date!: string;
+
+  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.Column(SQLZ_TS.DataType.STRING)
+  readonly time!: string;
 
   @SQLZ_TS.AllowNull(false)
   @SQLZ_TS.Column(SQLZ_TS.DataType.INTEGER)
@@ -85,12 +85,10 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly pyranometer!: number;
 
-  // 포인트 1에만 존재하는 데이터
   @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly pasteTypeTemperature?: number;
 
-  // 포인트 5에만 존재하는 데이터
   @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly windSpeed?: number;
@@ -142,14 +140,14 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
   }
 
   static async readAll(query: ListQuery, options?: SQLZ.FindOptions<SQLZ.Attributes<Weather>>) {
-    const { page = 1, count = 30, sort = 'time', dir = 'DESC' } = query;
+    const { page = 1, count = 30, sort = 'date', dir = 'DESC' } = query;
 
     return this.findAll({
       nest: true,
       raw: false,
       limit: count,
       offset: (page - 1) * count,
-      order: [[sort, dir]],
+      order: [[sort, dir], ['time_of_day', dir]], // date와 time_of_day로 정렬
       ...options,
     }).catch((error) => {
       seqLogger.error(error);
@@ -162,7 +160,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
     query: ListQuery,
     options?: Omit<SQLZ.FindOptions<WeatherAttributes>, 'where'>,
   ) {
-    const { page = 1, count = 30, sort = 'time', dir = 'DESC' } = query;
+    const { page = 1, count = 30, sort = 'date', dir = 'DESC' } = query;
 
     return this.findAll({
       nest: true,
@@ -170,7 +168,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
       where: { point },
       limit: count,
       offset: (page - 1) * count,
-      order: [[sort, dir]],
+      order: [[sort, dir], ['time_of_day', dir]],
       ...options,
     }).catch((error) => {
       seqLogger.error(error);
@@ -186,7 +184,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
       nest: true,
       raw: false,
       where: { point },
-      order: [['time', 'DESC']],
+      order: [['date', 'DESC'], ['time_of_day', 'DESC']],
       ...options,
     }).catch((error) => {
       seqLogger.error(error);

@@ -4,7 +4,7 @@ import weatherServices from '../services/weather.service';
 import { BasicResponse, ListResponse } from '../../shared/shared-types';
 import { STATUS_CODES } from '../../shared/constants/http-status';
 import { getResponsePhrase } from '../../shared/utils';
-import { Weather } from '../models/main/weather';
+import { Weather } from '../models/main/weather.model';
 
 const readAll = async (req: Request) => {
   const data = await weatherServices.readAll(req);

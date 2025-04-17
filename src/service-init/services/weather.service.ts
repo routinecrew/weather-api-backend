@@ -4,7 +4,7 @@ import { ParamsDictionary } from 'express-serve-static-core';
 import { ListQuery } from '../../shared/dtos/common.dto';
 import { STATUS_CODES } from '../../shared/constants/http-status';
 import { HttpError } from '../../shared/errors';
-import { Weather, WeatherAttributes } from '../models/main/weather';
+import { Weather, WeatherAttributes } from '../models/main/weather.model';
 
 const readAll = async (req: Request<unknown, unknown, unknown, ListQuery>) => {
   const { query } = req;
