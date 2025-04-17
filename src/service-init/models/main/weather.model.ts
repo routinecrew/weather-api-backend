@@ -147,7 +147,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
       raw: false,
       limit: count,
       offset: (page - 1) * count,
-      order: [[sort, dir], ['time_of_day', dir]], // date와 time_of_day로 정렬
+      order: [[sort, dir], ['date', dir]], 
       ...options,
     }).catch((error) => {
       seqLogger.error(error);
@@ -168,7 +168,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
       where: { point },
       limit: count,
       offset: (page - 1) * count,
-      order: [[sort, dir], ['time_of_day', dir]],
+      order: [[sort, dir], ['date', dir]],
       ...options,
     }).catch((error) => {
       seqLogger.error(error);
@@ -184,7 +184,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
       nest: true,
       raw: false,
       where: { point },
-      order: [['date', 'DESC'], ['time_of_day', 'DESC']],
+      order: [['date', 'DESC'], ['date', 'DESC']],
       ...options,
     }).catch((error) => {
       seqLogger.error(error);
