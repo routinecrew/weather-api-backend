@@ -45,7 +45,7 @@ function findCsvFile(filename: string): string {
     const csvFiles = files.filter(file => file.endsWith('.csv'));
     
     if (csvFiles.length > 0) {
-      const filePath = join(process.cwd(), csvFiles[0]as string);
+      const filePath = join(process.cwd(), csvFiles[0] as string);
       logger.info(`CSV 파일을 찾았습니다: ${filePath}`);
       return filePath;
     }
@@ -64,6 +64,7 @@ function findCsvFile(filename: string): string {
  */
 function parseDateAndTime(timeStr: string | undefined | null): { date: string, time: string } | null {
   if (!timeStr) {
+    logger.warn(`시간 문자열이 비어 있습니다: ${timeStr}`);
     return null;
   }
 
@@ -82,8 +83,10 @@ function parseDateAndTime(timeStr: string | undefined | null): { date: string, t
       };
     }
     
+    logger.warn(`날짜/시간 파싱 실패: ${cleanTimeStr}`);
     return null;
   } catch (error) {
+    logger.error(`날짜/시간 파싱 중 오류: ${error}`);
     return null;
   }
 }
@@ -113,9 +116,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       skipEmptyLines: true,
       dynamicTyping: true,
       transformHeader: (header: string) => header.trim(),
-      // 쉼표(,)를 기본 구분자로 설정
       delimiter: ",",
-      quoteChar: '"',  // 따옴표 처리 명시
+      quoteChar: '"',
       delimitersToGuess: [',', '\t', '|', ';'],
     });
 
@@ -194,8 +196,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           }
           
           const dateTimeParts = parseDateAndTime(timeStr);
-          if (!dateTimeParts) {
-            logger.warn(`날짜/시간 형식 오류: ${timeStr}`);
+          if (!dateTimeParts || !dateTimeParts.date) {
+            logger.warn(`유효한 날짜가 없습니다: ${timeStr}`);
             errorCount++;
             continue;
           }
@@ -214,6 +216,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               row[`Soil_EC${point}`] === undefined ||
               row[`Pyranometer${point}`] === undefined
             ) {
+              logger.warn(`포인트 ${point}의 필수 필드가 누락되었습니다: ${JSON.stringify(row)}`);
+              skippedCount++;
               continue;
             }
 
@@ -255,6 +259,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
             // 필수 필드 검증
             const requiredFields = [
+              'date',
+              'time',
+              'point',
               'airTemperature',
               'airHumidity',
               'airPressure',
@@ -273,8 +280,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             if (isValid) {
               weatherBatch.push(weatherData);
             } else {
-              logger.warn(`포인트 ${point}의 필수 필드 검증 실패`);
+              logger.warn(`포인트 ${point}의 필수 필드 검증 실패: ${JSON.stringify(weatherData)}`);
               errorCount++;
+              continue;
             }
           }
         } catch (error) {
@@ -356,5 +364,5 @@ if (require.main === module) {
   });
 }
 
-// export 추가 - 다른 모듈에서 가져다 쓸 수 있도록
+// export 추가 - nobis 모듈에서 가져다 쓸 수 있도록
 export { runImport, importWeatherDataFromCsv, parseDateAndTime, findCsvFile };

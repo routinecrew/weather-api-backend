@@ -176,8 +176,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           }
           
           const dateTimeParts = parseDateAndTime(timeStr);
-          if (!dateTimeParts) {
-            logger.warn(`날짜/시간 형식 오류: ${timeStr}`);
+          if (!dateTimeParts || !dateTimeParts.date) {
+            logger.warn(`유효한 날짜가 없습니다: ${timeStr}`);
             errorCount++;
             continue;
           }
