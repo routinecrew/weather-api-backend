@@ -6,6 +6,39 @@ import { Op } from 'sequelize';
 import { Weather, WeatherCreationAttributes } from '../service-init/models/main/weather.model';
 import { logger } from '../shared/configs/logger.config';
 
+// csvImportHelpers.ts 파일의 간단한 수정
+
+/**
+ * 날짜/시간 문자열을 파싱하여 날짜와 시간 부분으로 분리
+ * @param timeStr 'YYYY-MM-DD HH:MM:SS' 형식의 날짜/시간 문자열
+ * @returns 분리된 날짜와 시간 객체 또는 null
+ */
+function parseDateAndTime(timeStr: string | undefined | null): { date: string, time: string } | null {
+  if (!timeStr) {
+    return null;
+  }
+
+  try {
+    // 모든 종류의 공백 문자를 표준 공백으로 변환
+    const cleanTimeStr = timeStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+    
+    // 'YYYY-MM-DD HH:MM:SS' 형식 처리
+    const dateTimeRegex = /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/;
+    const match = dateTimeRegex.exec(cleanTimeStr);
+    
+    if (match) {
+      return {
+        date: match[1] as string,
+        time: match[2] as string
+      };
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
 /**
  * CSV 파일을 여러 경로에서 찾는 함수
  */
@@ -13,6 +46,7 @@ function findCsvFile(filename: string): string {
   const isDocker = process.env.DOCKER_ENV === 'true' || fs.existsSync('/.dockerenv');
   logger.info(`실행 환경: ${isDocker ? 'Docker' : '호스트'}`);
 
+  // 기본 경로 구성
   const possiblePaths = isDocker
     ? [
         `/app/dist/${filename}`,
@@ -35,43 +69,8 @@ function findCsvFile(filename: string): string {
     }
   }
 
-  logger.error(`CSV 파일을 찾을 수 없습니다: ${filename}. 탐색된 경로: ${possiblePaths.join(', ')}`);
+  logger.error(`CSV 파일을 찾을 수 없습니다: ${filename}`);
   throw new Error(`CSV 파일을 찾을 수 없습니다: ${filename}`);
-}
-
-/**
- * 날짜/시간 문자열을 파싱하여 날짜와 시간 부분으로 분리
- * @param timeStr 'YYYY-MM-DD HH:MM:SS' 또는 'YYYY-MM-DDHH:MM:SS' 형식의 날짜/시간 문자열
- * @returns 분리된 날짜와 시간 객체 또는 null
- */
-function parseDateAndTime(timeStr: string | undefined | null): { date: string, time: string } | null {
-  if (!timeStr) {
-    logger.warn(`날짜/시간 문자열이 제공되지 않았습니다: ${timeStr}`);
-    return null;
-  }
-
-  try {
-    const cleanTimeStr = timeStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
-    
-    const dateTimeRegex = /^(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2}:\d{2})$/;
-    const match = dateTimeRegex.exec(cleanTimeStr);
-    
-    if (match) {
-      const [, datePart, timePart] = match;
-      if (typeof datePart === 'string' && typeof timePart === 'string') {
-        return {
-          date: datePart, // YYYY-MM-DD
-          time: timePart  // HH:MM:SS
-        };
-      }
-    }
-
-    logger.warn(`지원되지 않는 날짜/시간 형식: ${cleanTimeStr}`);
-    return null;
-  } catch (error) {
-    logger.error(`날짜/시간 파싱 중 오류 발생:`, error);
-    return null;
-  }
 }
 
 /**
@@ -98,8 +97,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       skipEmptyLines: true,
       dynamicTyping: true,
       transformHeader: (header: string) => header.trim(),
-      delimiter: "\t",
-      delimitersToGuess: [',', '\t', '|', ';'],
+      delimiter: "\t",  // 기본 구분자로 탭 사용
+      delimitersToGuess: [',', '\t', '|', ';'], // 자동 감지를 위한 구분자 목록
     });
 
     if (parseResult.errors && parseResult.errors.length > 0) {
@@ -184,6 +183,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           const { date, time } = dateTimeParts;
 
           for (let point = 1; point <= 5; point++) {
+            // 필수 필드 확인
             if (
               row[`Air_Temperature${point}`] === undefined ||
               row[`Air_Humidity${point}`] === undefined ||
@@ -191,11 +191,12 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               row[`Soil_Temperature${point}`] === undefined ||
               row[`Soil_Humidity${point}`] === undefined ||
               row[`Soil_EC${point}`] === undefined ||
-              row[`Pyranometer${point}`] === undefined
+              row[`${point}`] === undefined
             ) {
               continue;
             }
 
+            // 중복 체크
             const timePointKey = `${date}_${time}_${point}`;
             if (processedTimePointPairs.has(timePointKey)) {
               skippedCount++;
@@ -204,9 +205,10 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             
             processedTimePointPairs.add(timePointKey);
 
+            // 날씨 데이터 객체 생성
             const weatherData: WeatherCreationAttributes = {
               date: date,
-              time: time, // string 타입 (HH:MM:SS)
+              time: time,
               point: point,
               airTemperature: row[`Air_Temperature${point}`],
               airHumidity: row[`Air_Humidity${point}`],
@@ -217,6 +219,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               pyranometer: row[`Pyranometer${point}`],
             };
 
+            // 포인트별 특수 필드
             if (point === 1 && row[`Paste_type_temperature${point}`] !== undefined) {
               weatherData.pasteTypeTemperature = row[`Paste_type_temperature${point}`];
             }
@@ -229,6 +232,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               weatherData.co2 = row[`CO2${point}`] || row[`${point}_CO2`];
             }
 
+            // 필수 필드 검증
             const requiredFields = [
               'airTemperature',
               'airHumidity',
@@ -242,13 +246,12 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             const isValid = requiredFields.every(
               (field) =>
                 weatherData[field as keyof WeatherCreationAttributes] !== undefined &&
-                weatherData[field as keyof WeatherCreationAttributes] !== null,
+                weatherData[field as keyof WeatherCreationAttributes] !== null
             );
 
             if (isValid) {
               weatherBatch.push(weatherData);
             } else {
-              logger.warn(`포인트 ${point}의 필수 필드 누락: ${JSON.stringify(row)}`);
               errorCount++;
             }
           }

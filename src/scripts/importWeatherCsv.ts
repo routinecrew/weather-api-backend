@@ -13,25 +13,23 @@ import { Sequelize } from 'sequelize-typescript';
  * CSV 파일을 여러 경로에서 찾는 함수
  */
 function findCsvFile(filename: string): string {
-  // Docker 환경인지 확인
   const isDocker = process.env.DOCKER_ENV === 'true' || fs.existsSync('/.dockerenv');
   logger.info(`실행 환경: ${isDocker ? 'Docker' : '호스트'}`);
 
-  // 환경에 따라 탐색 경로 설정
+  // 기본 경로 설정
   const possiblePaths = isDocker
     ? [
-        `/app/dist/${filename}`,  // Docker 컨테이너 내 dist 디렉토리
-        `/app/${filename}`,       // Docker 컨테이너 내 루트 디렉토리
-        `/app/src/${filename}`,   // Docker 컨테이너 내 src 디렉토리
+        `/app/dist/${filename}`,
+        `/app/${filename}`,
+        `/app/src/${filename}`,
       ]
     : [
-        join(path, 'dist', filename),         // 호스트 dist 디렉토리
-        join(path, filename),                 // 호스트 루트 디렉토리
-        join(path, 'src', filename),          // 호스트 src 디렉토리
-        '/home/ubuntu/weather-api-backend/src/IPB_250104_250305.csv', // 하드코딩된 호스트 경로
+        join(path, 'dist', filename),
+        join(path, filename),
+        join(path, 'src', filename),
+        '/home/ubuntu/weather-api-backend/src/IPB_250104_250305.csv',
       ];
 
-  // 모든 경로를 로깅하여 디버깅
   logger.info('CSV 파일 탐색 시작...');
   for (const filepath of possiblePaths) {
     logger.info(`경로 확인: ${filepath} (존재: ${fs.existsSync(filepath)})`);
@@ -41,8 +39,21 @@ function findCsvFile(filename: string): string {
     }
   }
 
-  // 파일을 찾지 못한 경우 자세한 오류 로그 출력
-  logger.error(`CSV 파일을 찾을 수 없습니다: ${filename}. 탐색된 경로: ${possiblePaths.join(', ')}`);
+  // 현재 디렉토리에서 CSV 파일 찾기
+  try {
+    const files = fs.readdirSync(process.cwd());
+    const csvFiles = files.filter(file => file.endsWith('.csv'));
+    
+    if (csvFiles.length > 0) {
+      const filePath = join(process.cwd(), csvFiles[0]as string);
+      logger.info(`CSV 파일을 찾았습니다: ${filePath}`);
+      return filePath;
+    }
+  } catch (err) {
+    logger.error(`디렉토리 검색 중 오류: ${err}`);
+  }
+
+  logger.error(`CSV 파일을 찾을 수 없습니다: ${filename}`);
   throw new Error(`CSV 파일을 찾을 수 없습니다: ${filename}`);
 }
 
@@ -53,42 +64,26 @@ function findCsvFile(filename: string): string {
  */
 function parseDateAndTime(timeStr: string | undefined | null): { date: string, time: string } | null {
   if (!timeStr) {
-    logger.warn(`날짜/시간 문자열이 제공되지 않았습니다: ${timeStr}`);
     return null;
   }
 
   try {
-    // 다양한 공백 문자 처리 (일반 공백, 특수 공백 등)
+    // 모든 종류의 공백 문자를 표준 공백으로 변환
     const cleanTimeStr = timeStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
     
-    // "YYYY-MM-DD HH:MM:SS" 형식 처리
-    const dateTimeRegex = /(\d{4}-\d{2}-\d{2})[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+(\d{2}:\d{2}:\d{2})/;
+    // 'YYYY-MM-DD HH:MM:SS' 형식 처리
+    const dateTimeRegex = /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/;
     const match = dateTimeRegex.exec(cleanTimeStr);
     
     if (match) {
-      const [, datePart, timePart] = match;
       return {
-        date: datePart as string, // YYYY-MM-DD
-        time: timePart as string // HH:MM:SS
-      };
-    }
-    
-    // 공백 없이 붙어있는 "YYYY-MM-DDHH:MM:SS" 형식 처리
-    const noSpaceRegex = /(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/;
-    const noSpaceMatch = noSpaceRegex.exec(cleanTimeStr);
-    
-    if (noSpaceMatch) {
-      const [, datePart, timePart] = noSpaceMatch;
-      return {
-        date: datePart as string, // YYYY-MM-DD
-        time: timePart as string  // HH:MM:SS
+        date: match[1] as string,
+        time: match[2] as string
       };
     }
 
-    logger.warn(`지원되지 않는 날짜/시간 형식: ${timeStr}`);
     return null;
   } catch (error) {
-    logger.error(`날짜/시간 파싱 중 오류 발생: ${timeStr}`, error);
     return null;
   }
 }
@@ -112,6 +107,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     const existingCount = await Weather.count();
     logger.info(`현재 DB에 ${existingCount}개의 날씨 데이터가 있습니다.`);
 
+    // 파싱 설정
     const parseResult = Papa.parse(fileContent, {
       header: true,
       skipEmptyLines: true,
@@ -137,6 +133,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     logger.info(`CSV 헤더: ${JSON.stringify(parseResult.meta.fields)}`);
     logger.info(`첫 번째 행 데이터: ${JSON.stringify(csvData[0])}`);
 
+    // 중복 방지를 위한 기존 데이터 확인
     const processedTimePointPairs = new Set<string>();
 
     if (csvData.length > 0 && csvData[0].time) {
@@ -171,6 +168,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       }
     }
 
+    // 데이터 배치 처리
     const totalBatches = Math.ceil(csvData.length / batchSize);
     let processedRows = 0;
     let successCount = 0;
@@ -202,7 +200,9 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
           const { date, time } = dateTimeParts;
 
+          // 각 포인트별 데이터 처리
           for (let point = 1; point <= 5; point++) {
+            // 필수 필드 확인
             if (
               row[`Air_Temperature${point}`] === undefined ||
               row[`Air_Humidity${point}`] === undefined ||
@@ -212,10 +212,10 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               row[`Soil_EC${point}`] === undefined ||
               row[`Pyranometer${point}`] === undefined
             ) {
-              logger.warn(`포인트 ${point} 필수 필드 누락: ${JSON.stringify(row)}`);
               continue;
             }
 
+            // 중복 체크
             const timePointKey = `${date}_${time}_${point}`;
             if (processedTimePointPairs.has(timePointKey)) {
               skippedCount++;
@@ -224,6 +224,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             
             processedTimePointPairs.add(timePointKey);
 
+            // 날씨 데이터 객체 생성
             const weatherData: WeatherCreationAttributes = {
               date: date,
               time: time,
@@ -237,6 +238,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               pyranometer: row[`Pyranometer${point}`],
             };
 
+            // 포인트별 특수 필드
             if (point === 1 && row[`Paste_type_temperature${point}`] !== undefined) {
               weatherData.pasteTypeTemperature = row[`Paste_type_temperature${point}`];
             }
@@ -249,6 +251,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               weatherData.co2 = row[`CO2${point}`] || row[`${point}_CO2`];
             }
 
+            // 필수 필드 검증
             const requiredFields = [
               'airTemperature',
               'airHumidity',
@@ -262,20 +265,13 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             const isValid = requiredFields.every(
               (field) =>
                 weatherData[field as keyof WeatherCreationAttributes] !== undefined &&
-                weatherData[field as keyof WeatherCreationAttributes] !== null,
+                weatherData[field as keyof WeatherCreationAttributes] !== null
             );
 
             if (isValid) {
               weatherBatch.push(weatherData);
             } else {
-              logger.warn(
-                `포인트 ${point}의 필수 필드 검증 실패: ${JSON.stringify(weatherData)}`,
-                requiredFields.filter(
-                  (field) =>
-                    weatherData[field as keyof WeatherCreationAttributes] === undefined ||
-                    weatherData[field as keyof WeatherCreationAttributes] === null
-                )
-              );
+              logger.warn(`포인트 ${point}의 필수 필드 검증 실패`);
               errorCount++;
             }
           }
@@ -287,11 +283,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
       try {
         if (weatherBatch.length > 0) {
-          // Log the batch data before insertion
-          logger.info(
-            `배치 ${batchIndex + 1}/${totalBatches} 데이터:`,
-            JSON.stringify(weatherBatch, null, 2)
-          );
           logger.info(`배치 ${batchIndex + 1}/${totalBatches}에 ${weatherBatch.length}개 데이터 저장 시도`);
           await Weather.bulkCreate(weatherBatch, {
             ignoreDuplicates: true
@@ -328,23 +319,29 @@ async function runImport() {
 
     // CSV 파일 경로 찾기
     const csvFilename = 'IPB_250104_250305.csv';
-    const csvFilePath = findCsvFile(csvFilename);
+    try {
+      const csvFilePath = findCsvFile(csvFilename);
+      logger.info(`CSV 파일을 찾았습니다: ${csvFilePath}`);
 
-    // 데이터베이스 연결
-    logger.info('🔌 Connecting to database...');
-    const seq = await connectPostgres();
+      // 데이터베이스 연결
+      logger.info('🔌 데이터베이스 연결 중...');
+      const seq = await connectPostgres();
 
-    // CSV 파일 가져오기
-    await importWeatherDataFromCsv(csvFilePath);
+      // CSV 파일 가져오기
+      await importWeatherDataFromCsv(csvFilePath);
 
-    // 데이터베이스 연결 종료
-    await (seq as Sequelize).close();
-    logger.info('🔌 Database connection closed');
-    
-    logger.info('✨ Script completed successfully');
-    process.exit(0);
+      // 데이터베이스 연결 종료
+      await (seq as Sequelize).close();
+      logger.info('🔌 데이터베이스 연결 종료');
+      
+      logger.info('✨ 스크립트 실행 완료');
+      process.exit(0);
+    } catch (fileError) {
+      logger.error('CSV 파일을 찾을 수 없습니다:', fileError);
+      process.exit(1);
+    }
   } catch (error) {
-    logger.error('❌ Script execution failed:', error);
+    logger.error('❌ 스크립트 실행 실패:', error);
     process.exit(1);
   }
 }
@@ -352,7 +349,7 @@ async function runImport() {
 // 스크립트가 직접 실행된 경우에만 실행
 if (require.main === module) {
   runImport().catch((error) => {
-    logger.error('❌ Unhandled error:', error);
+    logger.error('❌ 처리되지 않은 오류:', error);
     process.exit(1);
   });
 }
