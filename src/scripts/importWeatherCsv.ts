@@ -109,7 +109,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     logger.info(`CSV 파일 크기: ${fileContent.length} 바이트`);
     logger.info(`CSV 파일 처음 100자: ${fileContent.substring(0, 100)}`);
 
-    // 기존의 데이터 수 확인
     const existingCount = await Weather.count();
     logger.info(`현재 DB에 ${existingCount}개의 날씨 데이터가 있습니다.`);
 
@@ -118,8 +117,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       skipEmptyLines: true,
       dynamicTyping: true,
       transformHeader: (header: string) => header.trim(),
-      delimiter: "\t", // 탭으로 구분된 CSV 파일
-      delimitersToGuess: [',', '\t', '|', ';'], // 다양한 구분자 추측
+      delimiter: "\t",
+      delimitersToGuess: [',', '\t', '|', ';'],
     });
 
     if (parseResult.errors && parseResult.errors.length > 0) {
@@ -138,10 +137,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     logger.info(`CSV 헤더: ${JSON.stringify(parseResult.meta.fields)}`);
     logger.info(`첫 번째 행 데이터: ${JSON.stringify(csvData[0])}`);
 
-    // 데이터 중복 방지를 위한 Set 생성
     const processedTimePointPairs = new Set<string>();
 
-    // 기존 데이터 확인 (첫 번째 및 마지막 데이터 시간 범위)
     if (csvData.length > 0 && csvData[0].time) {
       try {
         const firstDateParsed = parseDateAndTime(csvData[0].time);
@@ -150,7 +147,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
         if (firstDateParsed && lastDateParsed) {
           logger.info(`CSV 데이터 날짜 범위: ${firstDateParsed.date} ~ ${lastDateParsed.date}`);
           
-          // 이미 DB에 있는 날짜-포인트 조합 조회
           const existingData = await Weather.findAll({
             where: {
               date: {
@@ -162,9 +158,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
           
           logger.info(`날짜 범위 내 기존 DB 데이터: ${existingData.length}개`);
           
-          // 중복 확인용 Set에 추가 - 타입 가드 추가
           existingData.forEach(record => {
-            // date와 time이 null이나 undefined가 아닌지 확인
             if (record.date && record.time) {
               processedTimePointPairs.add(`${record.date}_${record.time}_${record.point}`);
             }
@@ -192,7 +186,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
       for (const row of batch) {
         try {
-          // 시간 데이터가 있는지 확인
           const timeStr = String(row.time || '');
           if (!timeStr) {
             logger.warn(`시간 데이터가 없습니다: ${JSON.stringify(row)}`);
@@ -200,7 +193,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             continue;
           }
           
-          // 날짜와 시간 분리
           const dateTimeParts = parseDateAndTime(timeStr);
           if (!dateTimeParts) {
             logger.warn(`날짜/시간 형식 오류: ${timeStr}`);
@@ -210,9 +202,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
           const { date, time } = dateTimeParts;
 
-          // 각 포인트(1~5)별로 데이터 추출 및 저장
           for (let point = 1; point <= 5; point++) {
-            // 해당 포인트의 필수 데이터가 있는지 확인
             if (
               row[`Air_Temperature${point}`] === undefined ||
               row[`Air_Humidity${point}`] === undefined ||
@@ -222,23 +212,21 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               row[`Soil_EC${point}`] === undefined ||
               row[`Pyranometer${point}`] === undefined
             ) {
-              // 해당 포인트 데이터가 없으면 건너뜀
+              logger.warn(`포인트 ${point} 필수 필드 누락: ${JSON.stringify(row)}`);
               continue;
             }
 
-            // 중복 체크
             const timePointKey = `${date}_${time}_${point}`;
             if (processedTimePointPairs.has(timePointKey)) {
               skippedCount++;
-              continue; // 이미 처리된 시간-포인트 조합은 건너뜀
+              continue;
             }
             
-            // 중복 방지를 위해 Set에 추가
             processedTimePointPairs.add(timePointKey);
 
             const weatherData: WeatherCreationAttributes = {
-              date: date,      // YYYY-MM-DD 형식
-              time: time,      // HH:MM:SS 형식
+              date: date,
+              time: time,
               point: point,
               airTemperature: row[`Air_Temperature${point}`],
               airHumidity: row[`Air_Humidity${point}`],
@@ -249,14 +237,11 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               pyranometer: row[`Pyranometer${point}`],
             };
 
-            // 포인트 1에만 있는 데이터
             if (point === 1 && row[`Paste_type_temperature${point}`] !== undefined) {
               weatherData.pasteTypeTemperature = row[`Paste_type_temperature${point}`];
             }
 
-            // 포인트 5에만 있는 데이터
             if (point === 5) {
-              // CSV 컬럼명 매칭을 다양하게 시도
               weatherData.windSpeed = row[`Wind_speed${point}`] || row[`Wind_Speed${point}`];
               weatherData.windDirection = row[`Wind_direction${point}`] || row[`Wind_Direction${point}`];
               weatherData.solarRadiation = row[`Solar_radiation${point}`] || row[`Solar_Radiation${point}`];
@@ -264,7 +249,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
               weatherData.co2 = row[`CO2${point}`] || row[`${point}_CO2`];
             }
 
-            // 필수 필드 검증
             const requiredFields = [
               'airTemperature',
               'airHumidity',
@@ -284,7 +268,14 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             if (isValid) {
               weatherBatch.push(weatherData);
             } else {
-              logger.warn(`포인트 ${point}의 필수 필드 누락: ${JSON.stringify(row)}`);
+              logger.warn(
+                `포인트 ${point}의 필수 필드 검증 실패: ${JSON.stringify(weatherData)}`,
+                requiredFields.filter(
+                  (field) =>
+                    weatherData[field as keyof WeatherCreationAttributes] === undefined ||
+                    weatherData[field as keyof WeatherCreationAttributes] === null
+                )
+              );
               errorCount++;
             }
           }
@@ -296,9 +287,13 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
       try {
         if (weatherBatch.length > 0) {
+          // Log the batch data before insertion
+          logger.info(
+            `배치 ${batchIndex + 1}/${totalBatches} 데이터:`,
+            JSON.stringify(weatherBatch, null, 2)
+          );
           logger.info(`배치 ${batchIndex + 1}/${totalBatches}에 ${weatherBatch.length}개 데이터 저장 시도`);
           await Weather.bulkCreate(weatherBatch, {
-            // 동일한 date, time과 point 조합이 있으면 무시
             ignoreDuplicates: true
           });
           successCount += weatherBatch.length;
@@ -315,7 +310,6 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       }
     }
 
-    // 데이터 처리 결과 요약
     const afterCount = await Weather.count();
     logger.info(`🏁 CSV 가져오기 완료.`);
     logger.info(`총 처리: ${processedRows}행, 성공: ${successCount}, 오류: ${errorCount}, 중복 건너뜀: ${skippedCount}`);
