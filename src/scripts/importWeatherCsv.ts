@@ -47,68 +47,48 @@ function findCsvFile(filename: string): string {
 }
 
 /**
- * 날짜 문자열을 파싱하여 Date 객체와 날짜/시간 문자열을 반환하는 함수
- * @param dateStr 원본 날짜 문자열
- * @returns 파싱 결과 객체 또는 null
+ * 날짜/시간 문자열을 파싱하여 날짜와 시간 부분으로 분리
+ * @param timeStr 'YYYY-MM-DD HH:MM:SS' 형식의 날짜/시간 문자열
+ * @returns 분리된 날짜와 시간 객체 또는 null
  */
-function parseDate(dateStr: string | undefined | null): { date: Date, dateStr: string, timeStr: string } | null {
-  if (!dateStr) {
-    logger.warn(`날짜 문자열이 제공되지 않았습니다: ${dateStr}`);
+function parseDateAndTime(timeStr: string | undefined | null): { date: string, time: string } | null {
+  if (!timeStr) {
+    logger.warn(`날짜/시간 문자열이 제공되지 않았습니다: ${timeStr}`);
     return null;
   }
 
   try {
-    // 모든 공백 문자를 표준화
-    let cleanDateStr = dateStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+    // 다양한 공백 문자 처리 (일반 공백, 특수 공백 등)
+    const cleanTimeStr = timeStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
     
-    // "2025-01-0411:08:42" 형식 처리 - 날짜와 시간 사이에 공백 추가
-    cleanDateStr = cleanDateStr.replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, '$1 $2');
+    // "YYYY-MM-DD HH:MM:SS" 형식 처리
+    const dateTimeRegex = /(\d{4}-\d{2}-\d{2})[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+(\d{2}:\d{2}:\d{2})/;
+    const match = dateTimeRegex.exec(cleanTimeStr);
     
-    // // 표준 Date 객체로 파싱 시도
-    // const date = new Date(cleanDateStr);
-    // if (!isNaN(date.getTime())) {
-    //   // 날짜와 시간 문자열 추출
-    //   const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-    //   const timeStr = date.toISOString().split('T')[1]!.substring(0, 8); // HH:MM:SS
-    //   return { date, dateStr, timeStr };
-    // }
+    if (match) {
+      const [, datePart, timePart] = match;
+      return {
+        date: datePart as string, // YYYY-MM-DD
+        time: timePart as string // HH:MM:SS
+      };
+    }
     
-    // // 대안 포맷 처리 - "YYYY-MM-DD HH:MM:SS" 형식
-    // const regex = /(\d{4}-\d{2}-\d{2})[^\d]+(\d{2}:\d{2}:\d{2})/;
-    // const match = regex.exec(dateStr);
-    // if (match) {
-    //   const [, datePart, timePart] = match;
-    //   const formattedStr = `${datePart}T${timePart}`;
-    //   const parsedDate = new Date(formattedStr);
-    //   if (!isNaN(parsedDate.getTime())) {
-    //     return { 
-    //       date: parsedDate, 
-    //       dateStr: datePart, // 이미 YYYY-MM-DD 형식
-    //       timeStr: timePart  // 이미 HH:MM:SS 형식
-    //     };
-    //   }
-    // }
-
-    // 다른 형식 시도 - "YY/MM/DD HH:MM:SS" 형식 등
-    const korRegex = /(\d{2})\/(\d{2})\/(\d{2})[^\d]+(\d{2}):(\d{2}):(\d{2})/;
-    const korMatch = korRegex.exec(cleanDateStr);
-    if (korMatch) {
-      const [, year, month, day, hour, minute, second] = korMatch;
-      // YY 형식을 YYYY로 변환 (20xx년 or 19xx년 추정)
-      const fullYear = parseInt(year as string) > 50 ? `19${year}` : `20${year}`;
-      const dateStr = `${fullYear}-${month}-${day}`; // YYYY-MM-DD
-      const timeStr = `${hour}:${minute}:${second}`; // HH:MM:SS
-      const formattedStr = `${dateStr}T${timeStr}`;
-      const parsedDate = new Date(formattedStr);
-      if (!isNaN(parsedDate.getTime())) {
-        return { date: parsedDate, dateStr, timeStr };
-      }
+    // 공백 없이 붙어있는 "YYYY-MM-DDHH:MM:SS" 형식 처리
+    const noSpaceRegex = /(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/;
+    const noSpaceMatch = noSpaceRegex.exec(cleanTimeStr);
+    
+    if (noSpaceMatch) {
+      const [, datePart, timePart] = noSpaceMatch;
+      return {
+        date: datePart as string, // YYYY-MM-DD
+        time: timePart as string  // HH:MM:SS
+      };
     }
 
-    logger.warn(`지원되지 않는 날짜 형식: ${dateStr}`);
+    logger.warn(`지원되지 않는 날짜/시간 형식: ${timeStr}`);
     return null;
   } catch (error) {
-    logger.error(`날짜 파싱 중 오류 발생: ${dateStr}`, error);
+    logger.error(`날짜/시간 파싱 중 오류 발생: ${timeStr}`, error);
     return null;
   }
 }
@@ -138,8 +118,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
       skipEmptyLines: true,
       dynamicTyping: true,
       transformHeader: (header: string) => header.trim(),
-      delimiter: ",",
-      delimitersToGuess: [',', '\t', '|', ';'],
+      delimiter: "\t", // 탭으로 구분된 CSV 파일
+      delimitersToGuess: [',', '\t', '|', ';'], // 다양한 구분자 추측
     });
 
     if (parseResult.errors && parseResult.errors.length > 0) {
@@ -162,22 +142,19 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
     const processedTimePointPairs = new Set<string>();
 
     // 기존 데이터 확인 (첫 번째 및 마지막 데이터 시간 범위)
-    if (csvData.length > 0 && csvData[0].datetime && csvData[csvData.length - 1].datetime) {
+    if (csvData.length > 0 && csvData[0].time) {
       try {
-        const firstDateParsed = parseDate(csvData[0].datetime);
-        const lastDateParsed = parseDate(csvData[csvData.length - 1].datetime);
+        const firstDateParsed = parseDateAndTime(csvData[0].time);
+        const lastDateParsed = parseDateAndTime(csvData[csvData.length - 1].time);
         
         if (firstDateParsed && lastDateParsed) {
-          const firstDate = firstDateParsed.date;
-          const lastDate = lastDateParsed.date;
-          
-          logger.info(`CSV 데이터 날짜 범위: ${firstDate.toISOString()} ~ ${lastDate.toISOString()}`);
+          logger.info(`CSV 데이터 날짜 범위: ${firstDateParsed.date} ~ ${lastDateParsed.date}`);
           
           // 이미 DB에 있는 날짜-포인트 조합 조회
           const existingData = await Weather.findAll({
             where: {
               date: {
-                [Op.between]: [firstDateParsed.dateStr, lastDateParsed.dateStr]
+                [Op.between]: [firstDateParsed.date, lastDateParsed.date]
               }
             },
             attributes: ['date', 'time', 'point']
@@ -215,29 +192,23 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
 
       for (const row of batch) {
         try {
-          // 문자열로 강제 변환하고 빈 문자열 처리
-          const timeStr = String(row.datetime || row.time || '');
+          // 시간 데이터가 있는지 확인
+          const timeStr = String(row.time || '');
           if (!timeStr) {
-            logger.warn(`날짜 문자열이 없습니다: ${JSON.stringify(row)}`);
+            logger.warn(`시간 데이터가 없습니다: ${JSON.stringify(row)}`);
             errorCount++;
             continue;
           }
           
-          const parsedDateTime = parseDate(timeStr);
-          
-          if (!parsedDateTime) {
-            logger.warn(`날짜 형식 오류: ${JSON.stringify(row)}`);
+          // 날짜와 시간 분리
+          const dateTimeParts = parseDateAndTime(timeStr);
+          if (!dateTimeParts) {
+            logger.warn(`날짜/시간 형식 오류: ${timeStr}`);
             errorCount++;
             continue;
           }
 
-          // dateStr과 timeStr이 항상 존재하는지 확인
-          const { date: timeDate, dateStr, timeStr: timeOfDay } = parsedDateTime;
-          if (!dateStr || !timeOfDay) {
-            logger.warn(`날짜 또는 시간 문자열이 비어있습니다: ${JSON.stringify(parsedDateTime)}`);
-            errorCount++;
-            continue;
-          }
+          const { date, time } = dateTimeParts;
 
           // 각 포인트(1~5)별로 데이터 추출 및 저장
           for (let point = 1; point <= 5; point++) {
@@ -256,7 +227,7 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             }
 
             // 중복 체크
-            const timePointKey = `${dateStr}_${timeOfDay}_${point}`;
+            const timePointKey = `${date}_${time}_${point}`;
             if (processedTimePointPairs.has(timePointKey)) {
               skippedCount++;
               continue; // 이미 처리된 시간-포인트 조합은 건너뜀
@@ -266,8 +237,8 @@ async function importWeatherDataFromCsv(csvFilePath: string, batchSize = 100): P
             processedTimePointPairs.add(timePointKey);
 
             const weatherData: WeatherCreationAttributes = {
-              date: dateStr,      // YYYY-MM-DD 형식
-              time: timeOfDay,    // HH:MM:SS 형식
+              date: date,      // YYYY-MM-DD 형식
+              time: time,      // HH:MM:SS 형식
               point: point,
               airTemperature: row[`Air_Temperature${point}`],
               airHumidity: row[`Air_Humidity${point}`],
@@ -393,4 +364,4 @@ if (require.main === module) {
 }
 
 // export 추가 - 다른 모듈에서 가져다 쓸 수 있도록
-export { runImport, importWeatherDataFromCsv, parseDate, findCsvFile };
+export { runImport, importWeatherDataFromCsv, parseDateAndTime, findCsvFile };
