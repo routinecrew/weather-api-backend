@@ -68,7 +68,7 @@ function parseDate(dateStr: string): Date | null {
       if (korMatch) {
         const [, year, month, day, hour, minute, second] = korMatch;
         // YY 형식을 YYYY로 변환 (20xx년 or 19xx년 추정)
-        const fullYear = parseInt(year) > 50 ? `19${year}` : `20${year}`;
+        const fullYear = parseInt(year as string) > 50 ? `19${year}` : `20${year}`;
         const dateString = `${fullYear}-${month}-${day}T${hour}:${minute}:${second}`;
         date = new Date(dateString);
         logger.debug(`한국 형식으로 파싱: ${dateString} => ${date?.toISOString()}`);
@@ -85,7 +85,6 @@ function parseDate(dateStr: string): Date | null {
     // 유효한 날짜인지 확인
     if (date && !isNaN(date.getTime())) {
       // 현재 시간과 크게 차이나는지 확인 (2020년 이전이거나 2030년 이후라면 의심)
-      const currentDate = new Date();
       if (date.getFullYear() < 2020 || date.getFullYear() > 2030) {
         logger.warn(`의심스러운 연도: ${date.getFullYear()}, 원본 문자열: "${dateStr}"`);
       }
