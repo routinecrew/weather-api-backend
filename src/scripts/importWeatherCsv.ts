@@ -68,11 +68,11 @@ function parseDateAndTime(timeStr: string | undefined | null): { date: string, t
   }
 
   try {
-    // 모든 종류의 공백 문자를 표준 공백으로 변환
-    const cleanTimeStr = timeStr.replace(/[\s\u3000\u2000-\u200F\u2028-\u202F\u205F-\u206F]+/g, ' ').trim();
+    // 한글 자모음 문자(ㅤ, 코드: 12644)를 일반 공백으로 변환
+    const cleanTimeStr = timeStr.replace(/\u3164/g, ' ');
     
-    // 'YYYY-MM-DD HH:MM:SS' 형식 처리
-    const dateTimeRegex = /^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/;
+    // 간단한 정규식으로 날짜와 시간 추출
+    const dateTimeRegex = /(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/;
     const match = dateTimeRegex.exec(cleanTimeStr);
     
     if (match) {
@@ -81,7 +81,7 @@ function parseDateAndTime(timeStr: string | undefined | null): { date: string, t
         time: match[2] as string
       };
     }
-
+    
     return null;
   } catch (error) {
     return null;
