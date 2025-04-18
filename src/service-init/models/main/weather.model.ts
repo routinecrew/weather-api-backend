@@ -11,13 +11,13 @@ export interface WeatherAttributes {
   date: string; // 원본 날짜 문자열 (YYYY-MM-DD)
   time: string; // 원본 시간 문자열 (HH:MM:SS)
   point: number;
-  airTemperature: number;
-  airHumidity: number;
-  airPressure: number;
-  soilTemperature: number;
-  soilHumidity: number;
-  soilEC: number;
-  pyranometer: number;
+  airTemperature?: number;
+  airHumidity?: number;
+  airPressure?: number;
+  soilTemperature?: number;
+  soilHumidity?: number;
+  soilEC?: number;
+  pyranometer?: number;
   pasteTypeTemperature?: number;
   windSpeed?: number;
   windDirection?: number;
@@ -57,31 +57,31 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
   @SQLZ_TS.Column(SQLZ_TS.DataType.INTEGER)
   readonly point!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly airTemperature!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly airHumidity!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly airPressure!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly soilTemperature!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly soilHumidity!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly soilEC!: number;
 
-  @SQLZ_TS.AllowNull(false)
+  @SQLZ_TS.AllowNull(true)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly pyranometer!: number;
 
