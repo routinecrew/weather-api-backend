@@ -17,7 +17,7 @@ export interface WeatherAttributes {
   soilTemperature?: number;
   soilHumidity?: number;
   soilEC?: number;
-  pyranometer?: number;
+  pyranometer: number;
   pasteTypeTemperature?: number;
   windSpeed?: number;
   windDirection?: number;
@@ -81,7 +81,7 @@ export class Weather extends SQLZ_TS.Model<WeatherAttributes, WeatherCreationAtt
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly soilEC!: number;
 
-  @SQLZ_TS.AllowNull(true)
+  @SQLZ_TS.AllowNull(false)
   @SQLZ_TS.Column(SQLZ_TS.DataType.FLOAT)
   readonly pyranometer!: number;
 
