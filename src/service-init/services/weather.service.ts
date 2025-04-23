@@ -57,7 +57,7 @@ const readFromDateToToday = async (req: Request<ParamsDictionary, unknown, unkno
   const today = new Date().toISOString().split('T')[0];
   
   // 기본 쿼리 설정 - 페이지 크기 제한 확실히 설정
-  const { page = 1, count = 30, sort = 'date', dir = 'DESC' } = query;
+  const { page = 1, count = 30, sort = 'date', dir = 'ASC' } = query;
   const limit = Math.min(Number(count), 100); // 최대 100개로 제한
   
   try {
