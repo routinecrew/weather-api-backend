@@ -25,3 +25,11 @@ weatherRouter
 weatherRouter
   .route('/point/:point/latest')
   .get(validateApiKey, MW.validateDto(weatherDto.readLatestByPoint), MW.tryCatchAsync(weatherController.readLatestByPoint));
+
+weatherRouter
+.route('/from-date/:date')
+.get(
+  validateApiKey,
+  MW.validateDto(weatherDto.readFromDateToToday),
+  MW.tryCatchAsync(weatherController.readFromDateToToday)
+);

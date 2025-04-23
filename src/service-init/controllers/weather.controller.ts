@@ -48,6 +48,17 @@ const readLatestByPoint = async (req: Request) => {
   };
 };
 
+const readFromDateToToday = async (req: Request) => {
+  const data = await weatherServices.readFromDateToToday(req);
+
+  return <ListResponse<Weather>>{
+    result: true,
+    message: getResponsePhrase(STATUS_CODES.OK),
+    count: data.length,
+    data,
+  };
+};
+
 const write = async (req: Request) => {
   const data = await weatherServices.write(req);
 
@@ -83,6 +94,7 @@ export default {
   readOne,
   readByPoint,
   readLatestByPoint,
+  readFromDateToToday,
   write,
   modify,
   erase,

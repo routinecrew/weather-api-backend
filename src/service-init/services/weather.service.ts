@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
+import { Op } from 'sequelize';
 
 import { ListQuery } from '../../shared/dtos/common.dto';
 import { STATUS_CODES } from '../../shared/constants/http-status';
@@ -42,6 +43,43 @@ const readLatestByPoint = async (req: Request<ParamsDictionary, unknown, unknown
   }
 
   return weather;
+};
+
+const readFromDateToToday = async (req: Request<ParamsDictionary, unknown, unknown, ListQuery & { point?: number }>) => {
+  const { params, query } = req;
+  const { date } = params;
+  const { point } = query;
+  
+  // 현재 날짜 구하기 (YYYY-MM-DD 형식)
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 기본 쿼리 설정
+  const { page = 1, count = 30, sort = 'date', dir = 'DESC' } = query;
+  
+  // 날짜 범위 필터 설정
+  const whereClause: any = {
+    date: {
+      [Op.between]: [date, today]
+    }
+  };
+  
+  // 포인트 필터 추가 (선택적)
+  if (point) {
+    whereClause.point = Number(point);
+  }
+  
+  // 데이터 조회
+  const data = await Weather.findAll({
+    where: whereClause,
+    limit: count,
+    offset: (page - 1) * count,
+    order: [[sort, dir], ['date', dir]],
+    nest: true,
+    raw: false
+  });
+  
+  // 결과 반환
+  return data;
 };
 
 const write = async (req: Request<unknown, unknown, WeatherAttributes, unknown>) => {
@@ -135,6 +173,7 @@ export default {
   readOne,
   readByPoint,
   readLatestByPoint,
+  readFromDateToToday,
   write,
   modify,
   erase,
