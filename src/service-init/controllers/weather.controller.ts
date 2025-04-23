@@ -49,12 +49,13 @@ const readLatestByPoint = async (req: Request) => {
 };
 
 const readFromDateToToday = async (req: Request) => {
-  const data = await weatherServices.readFromDateToToday(req);
+  const { data, totalCount } = await weatherServices.readFromDateToToday(req);
 
-  return <ListResponse<Weather>>{
+  return <ListResponse<Weather>><unknown>{
     result: true,
     message: getResponsePhrase(STATUS_CODES.OK),
     count: data.length,
+    total: totalCount,
     data,
   };
 };

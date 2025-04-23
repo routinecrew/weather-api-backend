@@ -6,7 +6,9 @@ import { ListQuery } from '../../shared/dtos/common.dto';
 import { STATUS_CODES } from '../../shared/constants/http-status';
 import { HttpError } from '../../shared/errors';
 import { Weather, WeatherAttributes } from '../models/main/weather.model';
+import { logger } from '../../shared/configs/logger.config';
 
+// 기존 코드 유지 (readAll, readOne, readByPoint, readLatestByPoint 함수)
 const readAll = async (req: Request<unknown, unknown, unknown, ListQuery>) => {
   const { query } = req;
   return Weather.readAll(query);
@@ -45,6 +47,7 @@ const readLatestByPoint = async (req: Request<ParamsDictionary, unknown, unknown
   return weather;
 };
 
+// 최적화된 날짜 범위 조회 함수
 const readFromDateToToday = async (req: Request<ParamsDictionary, unknown, unknown, ListQuery & { point?: number }>) => {
   const { params, query } = req;
   const { date } = params;
@@ -53,35 +56,70 @@ const readFromDateToToday = async (req: Request<ParamsDictionary, unknown, unkno
   // 현재 날짜 구하기 (YYYY-MM-DD 형식)
   const today = new Date().toISOString().split('T')[0];
   
-  // 기본 쿼리 설정
+  // 기본 쿼리 설정 - 페이지 크기 제한 확실히 설정
   const { page = 1, count = 30, sort = 'date', dir = 'DESC' } = query;
+  const limit = Math.min(Number(count), 100); // 최대 100개로 제한
   
-  // 날짜 범위 필터 설정
-  const whereClause: any = {
-    date: {
-      [Op.between]: [date, today]
+  try {
+    logger.debug(`날짜 범위 조회: ${date} ~ ${today}, 페이지: ${page}, 크기: ${limit}`);
+    
+    // 날짜 범위 필터 설정
+    const whereClause: any = {
+      date: {
+        [Op.between]: [date, today]
+      }
+    };
+    
+    // 포인트 필터 추가 (선택적)
+    if (point) {
+      whereClause.point = Number(point);
     }
-  };
-  
-  // 포인트 필터 추가 (선택적)
-  if (point) {
-    whereClause.point = Number(point);
+    
+    // 데이터 개수 먼저 확인 (실제 데이터 없이 카운트만)
+    const totalCount = await Weather.count({
+      where: whereClause
+    });
+    
+    logger.debug(`조회 조건에 해당하는 총 데이터 수: ${totalCount}`);
+    
+    // 데이터 양이 너무 많으면 경고
+    if (totalCount > 10000) {
+      logger.warn(`대용량 데이터 조회 요청: ${totalCount}개`);
+    }
+    
+    // 효율적인 정렬 방식 선택
+    const effectiveSort = sort === 'date' || sort === 'time' ? sort : 'date';
+    
+    // 데이터 조회 - 페이지네이션 적용
+    const data = await Weather.findAll({
+      where: whereClause,
+      limit: limit,
+      offset: (page - 1) * limit,
+      order: [[effectiveSort, dir]],
+      nest: true,
+      raw: false,
+      // 필요한 컬럼만 선택하여 성능 개선
+      attributes: [
+        'id', 'date', 'time', 'point', 
+        'airTemperature', 'airHumidity', 'airPressure',
+        'soilTemperature', 'soilHumidity', 'soilEC', 'pyranometer',
+        'pasteTypeTemperature', 'windSpeed', 'windDirection', 'solarRadiation', 'rainfall', 'co2',
+        'createdAt', 'updatedAt'
+      ]
+    });
+    
+    // 결과에 전체 개수 포함
+    return {
+      data,
+      totalCount
+    };
+  } catch (error) {
+    logger.error(`날짜 범위 조회 중 오류: ${error}`);
+    throw new HttpError(STATUS_CODES.INTERNAL_SERVER_ERROR, '데이터 조회 중 오류가 발생했습니다');
   }
-  
-  // 데이터 조회
-  const data = await Weather.findAll({
-    where: whereClause,
-    limit: count,
-    offset: (page - 1) * count,
-    order: [[sort, dir], ['date', dir]],
-    nest: true,
-    raw: false
-  });
-  
-  // 결과 반환
-  return data;
 };
 
+// 기존 코드 유지 (write, modify, erase 함수)
 const write = async (req: Request<unknown, unknown, WeatherAttributes, unknown>) => {
   const { body } = req;
 
