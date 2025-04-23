@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  weather-postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    container_name: weather-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-weather_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      timeout: 20s
+      interval: 5s
+      start_period: 5s
+      retries: 5
+    networks:
+      - weather-network
+    restart: unless-stopped
+
+  weather-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weather-service
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-9092}
+      POSTGRES_HOST: weather-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE:-weather_db}
+      TZ: ${TZ:-Asia/Seoul}
+      APP_NAME: ${APP_NAME:-weather-service}
+    depends_on:
+      - weather-postgres
+    ports:
+      - "${PORT:-9092}:9092"
+    networks:
+      - weather-network
+    restart: unless-stopped
+    volumes:
+      - ./.env:/app/.env
+
+networks:
+  weather-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

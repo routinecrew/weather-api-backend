@@ -28,8 +28,8 @@ npm-debug.log*
 .DS_Store
 
 # Docker 관련 (필요 시)
-docker-compose.yml
-docker-compose.override.yml
+# docker-compose.yml
+# docker-compose.override.yml
 
 # 테스트 및 임시 파일
 coverage/
