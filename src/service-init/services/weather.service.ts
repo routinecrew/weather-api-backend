@@ -263,58 +263,65 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
     const orderByField = ['date', 'time', 'point'].includes(sort) ? sort : 'date';
     const orderDirection = ['ASC', 'DESC'].includes(dir as string) ? dir : 'DESC';
     
-    // 수정된 SQL 쿼리: 5분 단위로 그룹화하되 원본 시간값 유지
+    // 단순화된 SQL 쿼리: 5분 단위로 그룹화하고 각 그룹의 첫 번째 데이터만 선택
     const query = `
-      WITH time_buckets AS (
+      WITH time_groups AS (
         SELECT 
-          w.*,
-          -- 5분 단위로 그룹화 키 생성 (시간을 분으로 변환 후 5분 단위로 나눔)
-          CONCAT(
-            w.date, '_', 
-            w.point, '_',
-            LPAD(CAST(EXTRACT(HOUR FROM to_timestamp(w.time, 'HH24:MI:SS')) AS TEXT), 2, '0'),
-            LPAD(CAST(FLOOR(EXTRACT(MINUTE FROM to_timestamp(w.time, 'HH24:MI:SS')) / 5) * 5 AS TEXT), 2, '0')
-          ) AS time_bucket_key
+          date,
+          time,
+          point,
+          air_temperature,
+          air_humidity,
+          air_pressure,
+          soil_temperature,
+          soil_humidity,
+          soil_e_c,
+          pyranometer,
+          paste_type_temperature,
+          wind_speed,
+          wind_direction,
+          solar_radiation, 
+          rainfall,
+          co2,
+          EXTRACT(HOUR FROM to_timestamp(time, 'HH24:MI:SS')) * 12 + 
+          FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5) AS time_group,
+          ROW_NUMBER() OVER (
+            PARTITION BY 
+              date, 
+              point, 
+              EXTRACT(HOUR FROM to_timestamp(time, 'HH24:MI:SS')) * 12 + 
+              FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5)
+            ORDER BY 
+              time ASC
+          ) AS row_num
         FROM 
-          weather w
+          weather
         WHERE 
           ${whereClause}
-      ),
-      first_times AS (
-        -- 각 5분 버킷에서 첫 번째 시간 선택
-        SELECT DISTINCT ON (time_bucket_key)
-          date, time, point, time_bucket_key
-        FROM 
-          time_buckets
-        ORDER BY 
-          time_bucket_key, time ASC
       )
-      -- 최종 쿼리: 선택된 첫 시간과 평균값 결합
       SELECT 
-        ft.date,
-        ft.time,
-        ft.point,
-        AVG(tb.air_temperature) as air_temperature,
-        AVG(tb.air_humidity) as air_humidity,
-        AVG(tb.air_pressure) as air_pressure,
-        AVG(tb.soil_temperature) as soil_temperature,
-        AVG(tb.soil_humidity) as soil_humidity,
-        AVG(tb.soil_e_c) as soil_ec,
-        AVG(tb.pyranometer) as pyranometer,
-        AVG(tb.paste_type_temperature) as paste_type_temperature,
-        AVG(tb.wind_speed) as wind_speed,
-        AVG(tb.wind_direction) as wind_direction,
-        AVG(tb.solar_radiation) as solar_radiation,
-        AVG(tb.rainfall) as rainfall,
-        AVG(tb.co2) as co2
+        date,
+        time,
+        point,
+        air_temperature AS "airTemperature",
+        air_humidity AS "airHumidity",
+        air_pressure AS "airPressure",
+        soil_temperature AS "soilTemperature",
+        soil_humidity AS "soilHumidity",
+        soil_e_c AS "soilEC",
+        pyranometer,
+        paste_type_temperature AS "pasteTypeTemperature",
+        wind_speed AS "windSpeed",
+        wind_direction AS "windDirection",
+        solar_radiation AS "solarRadiation",
+        rainfall,
+        co2
       FROM 
-        first_times ft
-      JOIN 
-        time_buckets tb ON ft.time_bucket_key = tb.time_bucket_key
-      GROUP BY 
-        ft.date, ft.time, ft.point, ft.time_bucket_key
+        time_groups
+      WHERE 
+        row_num = 1
       ORDER BY 
-        ft.${orderByField} ${orderDirection}
+        ${orderByField} ${orderDirection}
       LIMIT :limit OFFSET :offset
     `;
     
@@ -335,33 +342,11 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       };
     }
     
-    // 데이터 변환 - 캐멀 케이스로 변환
-    const formattedData = result.map((item: any) => ({
-      date: item.date,
-      time: item.time,  // 원본 시간값을 그대로 유지
-      point: item.point,
-      airTemperature: item.air_temperature,
-      airHumidity: item.air_humidity,
-      airPressure: item.air_pressure,
-      soilTemperature: item.soil_temperature,
-      soilHumidity: item.soil_humidity,
-      soilEC: item.soil_ec,
-      pyranometer: item.pyranometer,
-      pasteTypeTemperature: item.paste_type_temperature,
-      windSpeed: item.wind_speed,
-      windDirection: item.wind_direction,
-      solarRadiation: item.solar_radiation,
-      rainfall: item.rainfall,
-      co2: item.co2
-    }));
-    
-    // 총 개수 계산 (간단한 방식)
+    // 총 개수 계산 - 단순화
     const countQuery = `
-      SELECT COUNT(DISTINCT CONCAT(
-        date, '_', 
-        point, '_',
-        LPAD(CAST(EXTRACT(HOUR FROM to_timestamp(time, 'HH24:MI:SS')) AS TEXT), 2, '0'),
-        LPAD(CAST(FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5) * 5 AS TEXT), 2, '0')
+      SELECT COUNT(DISTINCT date || '_' || point || '_' || (
+        EXTRACT(HOUR FROM to_timestamp(time, 'HH24:MI:SS')) * 12 + 
+        FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5)
       )) as total
       FROM weather
       WHERE ${whereClause}
@@ -374,8 +359,8 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
     });
     
     return {
-      data: formattedData,
-      totalCount: countResult ? Number((countResult as any).total) : formattedData.length
+      data: result, // 이미 올바른 형식으로 반환되므로 추가 변환 불필요
+      totalCount: countResult ? Number((countResult as any).total) : result.length
     };
   } catch (error) {
     logger.error(`5분 간격 데이터 조회 중 오류 발생: ${error}`);
