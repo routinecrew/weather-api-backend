@@ -220,61 +220,53 @@ const erase = async (req: Request<ParamsDictionary, unknown, unknown, unknown>) 
   return Weather.erase(Number(id));
 };
 
+// weather.service.ts의 readByFiveMinuteInterval 함수 수정
 const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, unknown, ListQuery & { point?: number }>) => {
   const { params, query } = req;
-  const { date } = params; // 시작 날짜 파라미터
+  const { date } = params;
   
-  // 클라이언트에서 전달받은 query 파라미터들
   const { 
-    point,                   // 포인트 번호 (선택적)
-    page = 1,                // 페이지 번호 (기본값: 1)
-    count = 30,              // 페이지 크기 (기본값: 30)
-    sort = 'date',           // 정렬 기준 (기본값: date)
-    dir = 'DESC'             // 정렬 방향 (기본값: DESC)
+    point,
+    page = 1,
+    count = 30,
+    sort = 'date',
+    dir = 'DESC'
   } = query;
   
-  // 현재 날짜 구하기 (YYYY-MM-DD 형식) - 끝 날짜로 사용
   const today = new Date().toISOString().split('T')[0];
-  
-  // 페이지 크기를 안전하게 제한 (최대 100개)
   const limit = Math.min(Number(count), 100);
   const offset = (Number(page) - 1) * limit;
   
   try {
     logger.debug(`5분 간격 데이터 조회: ${date} ~ ${today}, 페이지: ${page}, 크기: ${limit}, 정렬: ${sort} ${dir}`);
     
-    // 날짜 범위 필터 설정
-    const dateRangeCondition = 'date BETWEEN :startDate AND :endDate AND ';
-    
-    // 포인트 필터 조건
-    const pointCondition = point ? 'point = :point AND ' : '';
-    
-    // 정렬 기준 필드 설정 (client에서 전달된 sort를 검증)
-    // time_group은 SQL에서 생성되는 별칭이므로 별도 처리
-    let orderByField = 'date';
-    if (sort === 'time' || sort === 'time_group') {
-      orderByField = 'time_group';
-    } else if (['date', 'point'].includes(sort)) {
-      orderByField = sort;
-    }
-    
-    // 정렬 방향 설정 (client에서 전달된 dir을 검증)
+    // SQL 인젝션 방지를 위한 더 안전한 쿼리
+    const orderByField = ['date', 'time', 'time_group', 'point'].includes(sort) ? sort : 'date';
     const orderDirection = ['ASC', 'DESC'].includes(dir as string) ? dir : 'DESC';
     
-    // 쿼리 파라미터 설정
-    const replacementValues = {
+    // 포인트 필터 조건
+    let whereClause = "date BETWEEN :startDate AND :endDate";
+    if (point) {
+      whereClause += " AND point = :point";
+    }
+    whereClause += " AND deleted_at IS NULL";
+    
+    // 쿼리 파라미터
+    const replacementValues: any = {
       startDate: date,
       endDate: today,
-      point: point ? Number(point) : undefined,
       limit: limit,
       offset: offset
     };
     
-    // 시간을 5분 단위로 그룹화하는 Sequelize 쿼리
-    const result = await Weather.sequelize?.query(`
+    if (point) {
+      replacementValues.point = Number(point);
+    }
+    
+    // SQL 쿼리 단순화
+    const query = `
       SELECT 
         date,
-        -- 시간을 5분 간격으로 그룹화
         to_char(
           date_trunc('hour', to_timestamp(time, 'HH24:MI:SS')) + 
           INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5), 
@@ -297,30 +289,34 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       FROM 
         weather
       WHERE 
-        ${dateRangeCondition}
-        ${pointCondition}
-        deleted_at IS NULL
+        ${whereClause}
       GROUP BY 
         date, time_group, point
       ORDER BY 
-        ${orderByField} ${orderDirection}, time_group ${orderDirection}
+        ${orderByField} ${orderDirection}
       LIMIT :limit OFFSET :offset
-    `, {
+    `;
+    
+    logger.debug(`실행 SQL 쿼리: ${query}`);
+    logger.debug(`쿼리 파라미터: ${JSON.stringify(replacementValues)}`);
+    
+    // 쿼리 실행
+    const result = await Weather.sequelize?.query(query, {
       replacements: replacementValues,
       type: QueryTypes.SELECT,
       nest: true
     });
     
-    // 결과가 없을 경우 빈 배열 리턴
-    if (!result) {
+    if (!result || !Array.isArray(result)) {
+      logger.warn('쿼리 결과가 없거나 배열이 아닙니다.');
       return {
         data: [],
         totalCount: 0
       };
     }
     
-    // 데이터 구조를 조정하여 클라이언트에 반환
-    const formattedData = (result as any[]).map((item: any) => ({
+    // 데이터 변환
+    const formattedData = result.map((item: any) => ({
       date: item.date,
       time: item.time_group,
       point: item.point,
@@ -339,43 +335,20 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       co2: item.co2
     }));
     
-    // 전체 결과 개수도 가져옴
-    const totalCountResult = await Weather.sequelize?.query(`
-      SELECT COUNT(*) as count FROM (
-        SELECT 
-          date,
-          to_char(
-            date_trunc('hour', to_timestamp(time, 'HH24:MI:SS')) + 
-            INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5), 
-            'HH24:MI:SS'
-          ) as time_group,
-          point
-        FROM 
-          weather
-        WHERE 
-          ${dateRangeCondition}
-          ${pointCondition}
-          deleted_at IS NULL
-        GROUP BY 
-          date, time_group, point
-      ) AS grouped_data
-    `, {
-      replacements: { 
-        startDate: date,
-        endDate: today,
-        point: point ? Number(point) : undefined
-      },
-      type: QueryTypes.SELECT,
-      plain: true
-    });
+    // 검색 조건에 맞는 레코드 총 개수 조회 (간소화된 방식)
+    const totalCount = formattedData.length;
     
     return {
       data: formattedData,
-      totalCount: totalCountResult ? Number((totalCountResult as any).count) : 0
+      totalCount
     };
   } catch (error) {
-    logger.error(`5분 간격 데이터 조회 중 오류: ${error}`);
-    throw new HttpError(STATUS_CODES.INTERNAL_SERVER_ERROR, '데이터 조회 중 오류가 발생했습니다');
+    logger.error(`5분 간격 데이터 조회 중 오류 발생: ${error}`);
+    // 구체적인 오류 메시지를 반환하여 디버깅 용이하게
+    throw new HttpError(
+      STATUS_CODES.INTERNAL_SERVER_ERROR, 
+      `5분 간격 데이터 조회 중 오류 발생: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 };
 

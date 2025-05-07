@@ -91,15 +91,20 @@ const erase = async (req: Request) => {
 };
 
 const readByFiveMinuteInterval = async (req: Request) => {
-  const { data, totalCount } = await weatherServices.readByFiveMinuteInterval(req);
+  try {
+    const { data, totalCount } = await weatherServices.readByFiveMinuteInterval(req);
 
-  return <ListResponse<Weather>><unknown>{
-    result: true,
-    message: getResponsePhrase(STATUS_CODES.OK),
-    count: data.length,
-    total: totalCount,
-    data,
-  };
+    return <ListResponse<Weather>><unknown>{
+      result: true,
+      message: getResponsePhrase(STATUS_CODES.OK),
+      count: data.length,
+      total: totalCount,
+      data,
+    };
+  } catch (error) {
+    // 서비스에서 발생한 오류 처리
+    throw error; // MW.tryCatchAsync에서 처리하도록 전파
+  }
 };
 
 export default {
