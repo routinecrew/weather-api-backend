@@ -78,14 +78,30 @@ const readFromDateToToday = {
     date: Joi.string().required().pattern(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD 형식
   }),
   query: Joi.object().keys({
-    point: Joi.number().optional().min(1).max(5), // 포인트별 필터링 옵션 추가
-    ...commonDto.readAll.query.keys,
+    point: Joi.number().optional().min(1).max(5), // 포인트별 필터링 옵션
+    page: Joi.number().integer().min(1).default(1),
+    count: Joi.number().integer().min(1).max(100).default(30),
+    sort: Joi.string().valid('date', 'time', 'point', 'createdAt', 'updatedAt').default('date'),
+    dir: Joi.string().valid('ASC', 'DESC').default('DESC'),
   }),
 };
 
 const erase = {
   params: Joi.object().keys({
     id: Joi.number().required(),
+  }),
+};
+
+const readByFiveMinuteInterval = {
+  params: Joi.object().keys({
+    date: Joi.string().required().pattern(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD 형식
+  }),
+  query: Joi.object().keys({
+    point: Joi.number().optional().min(1).max(5), // 포인트별 필터링 옵션
+    page: Joi.number().integer().min(1).default(1),
+    count: Joi.number().integer().min(1).max(100).default(30),
+    sort: Joi.string().valid('date', 'time', 'time_group', 'point').default('date'),
+    dir: Joi.string().valid('ASC', 'DESC').default('DESC'),
   }),
 };
 
@@ -97,4 +113,5 @@ export default {
   readLatestByPoint,
   readFromDateToToday,
   erase,
+  readByFiveMinuteInterval,
 };

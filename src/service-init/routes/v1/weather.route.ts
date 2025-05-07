@@ -33,3 +33,11 @@ weatherRouter
   MW.validateDto(weatherDto.readFromDateToToday),
   MW.tryCatchAsync(weatherController.readFromDateToToday)
 );
+
+weatherRouter
+  .route('/five-minute-interval')
+  .get(
+    validateApiKey,
+    MW.validateDto(commonDto.readAll), // 기존 DTO 재사용
+    MW.tryCatchAsync(weatherController.readByFiveMinuteInterval)
+  );

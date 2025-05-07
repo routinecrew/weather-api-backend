@@ -90,6 +90,18 @@ const erase = async (req: Request) => {
   };
 };
 
+const readByFiveMinuteInterval = async (req: Request) => {
+  const { data, totalCount } = await weatherServices.readByFiveMinuteInterval(req);
+
+  return <ListResponse<Weather>><unknown>{
+    result: true,
+    message: getResponsePhrase(STATUS_CODES.OK),
+    count: data.length,
+    total: totalCount,
+    data,
+  };
+};
+
 export default {
   readAll,
   readOne,
@@ -99,4 +111,5 @@ export default {
   write,
   modify,
   erase,
+  readByFiveMinuteInterval
 };
