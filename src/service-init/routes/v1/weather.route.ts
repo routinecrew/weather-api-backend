@@ -27,6 +27,14 @@ weatherRouter
   .get(validateApiKey, MW.validateDto(weatherDto.readLatestByPoint), MW.tryCatchAsync(weatherController.readLatestByPoint));
 
 weatherRouter
+  .route('/from-date/:date/five-minute')
+  .get(
+    validateApiKey,
+    MW.validateDto(weatherDto.readByFiveMinuteInterval),
+    MW.tryCatchAsync(weatherController.readByFiveMinuteInterval)
+  );
+  
+weatherRouter
 .route('/from-date/:date')
 .get(
   validateApiKey,
@@ -34,10 +42,3 @@ weatherRouter
   MW.tryCatchAsync(weatherController.readFromDateToToday)
 );
 
-weatherRouter
-  .route('/five-minute-interval')
-  .get(
-    validateApiKey,
-    MW.validateDto(weatherDto.readByFiveMinuteInterval), // 올바른 DTO 사용
-    MW.tryCatchAsync(weatherController.readByFiveMinuteInterval)
-  );
