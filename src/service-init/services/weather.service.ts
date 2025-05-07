@@ -240,11 +240,7 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
   try {
     logger.debug(`5분 간격 데이터 조회: ${date} ~ ${today}, 페이지: ${page}, 크기: ${limit}, 정렬: ${sort} ${dir}`);
     
-    // SQL 인젝션 방지를 위한 더 안전한 쿼리
-    const orderByField = ['date', 'time', 'time_group', 'point'].includes(sort) ? sort : 'date';
-    const orderDirection = ['ASC', 'DESC'].includes(dir as string) ? dir : 'DESC';
-    
-    // 포인트 필터 조건
+    // 검색 조건 구성
     let whereClause = "date BETWEEN :startDate AND :endDate";
     if (point) {
       whereClause += " AND point = :point";
@@ -263,42 +259,66 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       replacementValues.point = Number(point);
     }
     
-    // SQL 쿼리 단순화
+    // 안전한 정렬 필드 선택
+    const orderByField = ['date', 'time', 'point'].includes(sort) ? sort : 'date';
+    const orderDirection = ['ASC', 'DESC'].includes(dir as string) ? dir : 'DESC';
+    
+    // 수정된 SQL 쿼리: 5분 단위로 그룹화하되 원본 시간값 유지
     const query = `
+      WITH time_buckets AS (
+        SELECT 
+          w.*,
+          -- 5분 단위로 그룹화 키 생성 (시간을 분으로 변환 후 5분 단위로 나눔)
+          CONCAT(
+            w.date, '_', 
+            w.point, '_',
+            LPAD(CAST(EXTRACT(HOUR FROM to_timestamp(w.time, 'HH24:MI:SS')) AS TEXT), 2, '0'),
+            LPAD(CAST(FLOOR(EXTRACT(MINUTE FROM to_timestamp(w.time, 'HH24:MI:SS')) / 5) * 5 AS TEXT), 2, '0')
+          ) AS time_bucket_key
+        FROM 
+          weather w
+        WHERE 
+          ${whereClause}
+      ),
+      first_times AS (
+        -- 각 5분 버킷에서 첫 번째 시간 선택
+        SELECT DISTINCT ON (time_bucket_key)
+          date, time, point, time_bucket_key
+        FROM 
+          time_buckets
+        ORDER BY 
+          time_bucket_key, time ASC
+      )
+      -- 최종 쿼리: 선택된 첫 시간과 평균값 결합
       SELECT 
-        date,
-        to_char(
-          date_trunc('hour', to_timestamp(time, 'HH24:MI:SS')) + 
-          INTERVAL '5 min' * FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5), 
-          'HH24:MI:SS'
-        ) as time_group,
-        point,
-        AVG(air_temperature) as air_temperature,
-        AVG(air_humidity) as air_humidity,
-        AVG(air_pressure) as air_pressure,
-        AVG(soil_temperature) as soil_temperature,
-        AVG(soil_humidity) as soil_humidity,
-        AVG(soil_ec) as soil_ec,
-        AVG(pyranometer) as pyranometer,
-        AVG(paste_type_temperature) as paste_type_temperature,
-        AVG(wind_speed) as wind_speed,
-        AVG(wind_direction) as wind_direction,
-        AVG(solar_radiation) as solar_radiation,
-        AVG(rainfall) as rainfall,
-        AVG(co2) as co2
+        ft.date,
+        ft.time,
+        ft.point,
+        AVG(tb.air_temperature) as air_temperature,
+        AVG(tb.air_humidity) as air_humidity,
+        AVG(tb.air_pressure) as air_pressure,
+        AVG(tb.soil_temperature) as soil_temperature,
+        AVG(tb.soil_humidity) as soil_humidity,
+        AVG(tb.soil_ec) as soil_ec,
+        AVG(tb.pyranometer) as pyranometer,
+        AVG(tb.paste_type_temperature) as paste_type_temperature,
+        AVG(tb.wind_speed) as wind_speed,
+        AVG(tb.wind_direction) as wind_direction,
+        AVG(tb.solar_radiation) as solar_radiation,
+        AVG(tb.rainfall) as rainfall,
+        AVG(tb.co2) as co2
       FROM 
-        weather
-      WHERE 
-        ${whereClause}
+        first_times ft
+      JOIN 
+        time_buckets tb ON ft.time_bucket_key = tb.time_bucket_key
       GROUP BY 
-        date, time_group, point
+        ft.date, ft.time, ft.point, ft.time_bucket_key
       ORDER BY 
-        ${orderByField} ${orderDirection}
+        ft.${orderByField} ${orderDirection}
       LIMIT :limit OFFSET :offset
     `;
     
     logger.debug(`실행 SQL 쿼리: ${query}`);
-    logger.debug(`쿼리 파라미터: ${JSON.stringify(replacementValues)}`);
     
     // 쿼리 실행
     const result = await Weather.sequelize?.query(query, {
@@ -315,10 +335,10 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       };
     }
     
-    // 데이터 변환
+    // 데이터 변환 - 캐멀 케이스로 변환
     const formattedData = result.map((item: any) => ({
       date: item.date,
-      time: item.time_group,
+      time: item.time,  // 원본 시간값을 그대로 유지
       point: item.point,
       airTemperature: item.air_temperature,
       airHumidity: item.air_humidity,
@@ -335,16 +355,30 @@ const readByFiveMinuteInterval = async (req: Request<ParamsDictionary, unknown, 
       co2: item.co2
     }));
     
-    // 검색 조건에 맞는 레코드 총 개수 조회 (간소화된 방식)
-    const totalCount = formattedData.length;
+    // 총 개수 계산 (간단한 방식)
+    const countQuery = `
+      SELECT COUNT(DISTINCT CONCAT(
+        date, '_', 
+        point, '_',
+        LPAD(CAST(EXTRACT(HOUR FROM to_timestamp(time, 'HH24:MI:SS')) AS TEXT), 2, '0'),
+        LPAD(CAST(FLOOR(EXTRACT(MINUTE FROM to_timestamp(time, 'HH24:MI:SS')) / 5) * 5 AS TEXT), 2, '0')
+      )) as total
+      FROM weather
+      WHERE ${whereClause}
+    `;
+    
+    const countResult = await Weather.sequelize?.query(countQuery, {
+      replacements: replacementValues,
+      type: QueryTypes.SELECT,
+      plain: true
+    });
     
     return {
       data: formattedData,
-      totalCount
+      totalCount: countResult ? Number((countResult as any).total) : formattedData.length
     };
   } catch (error) {
     logger.error(`5분 간격 데이터 조회 중 오류 발생: ${error}`);
-    // 구체적인 오류 메시지를 반환하여 디버깅 용이하게
     throw new HttpError(
       STATUS_CODES.INTERNAL_SERVER_ERROR, 
       `5분 간격 데이터 조회 중 오류 발생: ${error instanceof Error ? error.message : String(error)}`
